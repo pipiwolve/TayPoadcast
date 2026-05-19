@@ -254,26 +254,33 @@ async def notify_all(
         duration_sec=duration_sec,
     )
 
-    # WeChat — Chinese repo summary as template message
+    # WeChat — text briefing (no link, self-contained summary)
     if os.environ.get("WX_APPID"):
-        top_story = "今日AI热点速递"
         if repo_summaries:
-            parts = [f"{s.get('name', '?')}({s.get('summary', '')})" for s in repo_summaries[:4]]
-            top_story = " · ".join(parts)[:120]
+            lines = []
+            for i, s in enumerate(repo_summaries[:5]):
+                name = s.get("name", "?").split("/")[-1]
+                stars = s.get("stars", 0)
+                summary = s.get("summary", "")
+                lines.append(f"{i+1}.{name} ⭐{stars} {summary}")
+            briefing = "\n".join(lines)
         elif digest_items:
-            parts = []
-            for item in digest_items[:5]:
+            lines = []
+            for i, item in enumerate(digest_items[:5]):
                 if item.stars > 0:
-                    parts.append(f"{item.title.strip()}(⭐{item.stars})")
-            if parts:
-                top_story = " · ".join(parts)[:120]
-        elif script:
-            top_story = script[0]["text"][:80]
+                    name = item.title.strip().split("/")[-1]
+                    lines.append(f"{i+1}.{name} ⭐{item.stars}")
+            briefing = "\n".join(lines) if lines else "今日AI热点速递"
+        else:
+            briefing = "今日AI热点速递，点击收听完整播客"
+
+        # Truncate to fit WeChat template limits
+        briefing = briefing[:200]
 
         results["wechat"] = await wechat_send_template(
-            title=f"AI新闻播客 | {date_str}",
-            summary=top_story,
-            url=audio_url,
+            title=f"AI新闻早报 | {date_str}",
+            summary=briefing,
+            url="",  # No GitHub link — self-contained text briefing
         )
 
     return results
