@@ -94,9 +94,15 @@ async def run_auto_pipeline():
 
     # Step 4: Notify
     print("\n📤 Step 4/4: 推送通知...")
+    audio_url = ""
+    base_url = os.environ.get("AUDIO_BASE_URL", "")
+    if base_url:
+        audio_url = f"{base_url}/{date_str}/podcast_{date_str}.mp3"
+        print(f"   MP3 公网链接: {audio_url}")
     results = await notify_all(
         audio_path=output,
         script=script,
+        audio_url=audio_url,
         date_str=date_display,
     )
 

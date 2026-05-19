@@ -18,6 +18,8 @@ jobs:
   generate-and-notify:
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    permissions:
+      contents: write
 
     steps:
       - name: 检出代码
@@ -48,14 +50,24 @@ jobs:
           fi
           echo "TELEGRAM_SET=$HAS_TG" >> $GITHUB_ENV
 
+          HAS_WX=false
+          if [ -n "$WX_APPID" ] && [ -n "$WX_OPENID" ] && [ -n "$WX_TEMPLATE_ID" ]; then
+            HAS_WX=true
+          fi
+          echo "WECHAT_SET=$HAS_WX" >> $GITHUB_ENV
+
           echo "LLM API Key: $HAS_KEY"
           echo "Telegram:     $HAS_TG"
+          echo "WeChat:       $HAS_WX"
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          WX_APPID: ${{ secrets.WX_APPID }}
+          WX_OPENID: ${{ secrets.WX_OPENID }}
+          WX_TEMPLATE_ID: ${{ secrets.WX_TEMPLATE_ID }}
 
       - name: 运行每日播客管线
         id: podcast
@@ -71,15 +83,14 @@ jobs:
           WX_SECRET: ${{ secrets.WX_SECRET }}
           WX_OPENID: ${{ secrets.WX_OPENID }}
           WX_TEMPLATE_ID: ${{ secrets.WX_TEMPLATE_ID }}
+          AUDIO_BASE_URL: https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}
 
-      - name: 上传播客产物
-        if: always()
-        uses: actions/upload-artifact@v4
+      - name: 部署到 GitHub Pages
+        uses: peaceiris/actions-gh-pages@v4
         with:
-          name: daily-podcast-${{ github.run_id }}
-          path: output/
-          retention-days: 7
-          compression-level: 0
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: output
+          keep_files: false
 
       - name: 生成摘要
         if: always()
@@ -93,12 +104,13 @@ jobs:
             echo "|---|---|"
             echo "| LLM API Key | ${{ env.LLM_KEY_SET == 'true' && '✅' || '❌ 未设置' }} |"
             echo "| Telegram | ${{ env.TELEGRAM_SET == 'true' && '✅' || '⚠️ 未配置' }} |"
+            echo "| WeChat | ${{ env.WECHAT_SET == 'true' && '✅' || '⚠️ 未配置' }} |"
             echo ""
             if [ -f "output/$(TZ='Asia/Shanghai' date +%Y%m%d)/script.json" ]; then
               TURNS=$(python -c "import json; d=json.load(open('output/$(TZ='Asia/Shanghai' date +%Y%m%d)/script.json')); print(len(d))")
               echo "✅ 播客已生成，${TURNS} 轮对话"
               echo ""
-              echo "[📥 下载产物](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})"
+              echo "🔊 [在线收听](https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/$(TZ='Asia/Shanghai' date +%Y%m%d)/podcast_$(TZ='Asia/Shanghai' date +%Y%m%d).mp3)"
             else
               if [ "${{ env.LLM_KEY_SET }}" != "true" ]; then
                 echo "❌ 缺少 LLM API Key，请在 GitHub Secrets 中设置 DEEPSEEK_API_KEY"
