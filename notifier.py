@@ -88,22 +88,38 @@ async def telegram_send_audio(
 async def telegram_send_podcast(
     audio_path: str,
     script: list[dict] | None = None,
+    digest_items: list | None = None,
     date_str: str = "",
+    duration_sec: float = 0,
     token: str | None = None,
     chat_id: str | None = None,
 ) -> dict:
-    """Send podcast: text preview first, then audio file."""
+    """Send podcast: repo summary preview first, then audio file."""
     if not date_str:
         date_str = datetime.now().strftime("%Y年%m月%d日")
 
-    # Generate text preview from script
     preview_lines = [f"🎙️ <b>AI新闻播客 | {date_str}</b>\n"]
+
+    if digest_items:
+        preview_lines.append("📦 <b>本期 GitHub 仓库：</b>")
+        for i, item in enumerate(digest_items[:8]):
+            if item.source == "GitHub热门" and item.stars > 0:
+                star_str = f"⭐{item.stars}"
+                lang_str = f" | {item.language}" if item.language else ""
+                preview_lines.append(f"  {i+1}. <b>{item.title.strip()}</b> — {star_str}{lang_str}")
+                if item.description:
+                    desc = item.description[:80].strip()
+                    preview_lines.append(f"     {desc}")
+        preview_lines.append("")
+
     if script:
-        for turn in script[:3]:
-            preview_lines.append(f"<i>{turn['speaker']}</i>: {turn['text'][:80]}...")
-        preview_lines.append(f"\n📻 共 {len(script)} 轮对话，点击下方音频收听 ↓")
-    else:
-        preview_lines.append("今日AI热点速递，点击收听 ↓")
+        minutes = int(duration_sec // 60) if duration_sec else 0
+        seconds = int(duration_sec % 60) if duration_sec else 0
+        if minutes:
+            preview_lines.append(f"📻 共 {len(script)} 轮对话 · 时长 {minutes}分{seconds}秒")
+        else:
+            preview_lines.append(f"📻 共 {len(script)} 轮对话")
+    preview_lines.append("点击下方音频收听 ↓")
 
     preview = "\n".join(preview_lines)
 
@@ -192,6 +208,7 @@ async def wechat_send_template(
 async def notify_all(
     audio_path: str,
     script: list[dict] | None = None,
+    digest_items: list | None = None,
     audio_url: str = "",
     date_str: str = "",
 ) -> dict:
@@ -201,16 +218,42 @@ async def notify_all(
 
     results = {}
 
-    # Telegram
+    # Get audio duration for preview
+    duration_sec = 0
+    try:
+        import subprocess
+        result = subprocess.run([
+            "ffprobe", "-v", "error",
+            "-show_entries", "format=duration",
+            "-of", "default=noprint_wrappers=1:nokey=1",
+            audio_path,
+        ], capture_output=True, text=True)
+        duration_sec = float(result.stdout.strip())
+    except Exception:
+        pass
+
+    # Telegram — repo summary preview + MP3
     results["telegram"] = await telegram_send_podcast(
         audio_path=audio_path,
         script=script,
+        digest_items=digest_items,
         date_str=date_str,
+        duration_sec=duration_sec,
     )
 
-    # WeChat (text + link only, can't send audio directly)
+    # WeChat — repo summary as template message
     if os.environ.get("WX_APPID"):
-        top_story = script[0]["text"][:80] if script else "今日AI热点速递"
+        top_story = "今日AI热点速递"
+        if digest_items:
+            stars = []
+            for item in digest_items[:5]:
+                if item.stars > 0:
+                    stars.append(f"{item.title.strip()}(⭐{item.stars})")
+            if stars:
+                top_story = " · ".join(stars)[:120]
+        elif script:
+            top_story = script[0]["text"][:80]
+
         results["wechat"] = await wechat_send_template(
             title=f"AI新闻播客 | {date_str}",
             summary=top_story,

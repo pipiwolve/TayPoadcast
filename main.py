@@ -102,6 +102,7 @@ async def run_auto_pipeline():
     results = await notify_all(
         audio_path=output,
         script=script,
+        digest_items=digest.items,
         audio_url=audio_url,
         date_str=date_display,
     )
