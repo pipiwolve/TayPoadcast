@@ -7,8 +7,6 @@ on:
   workflow_dispatch:
   push:
     branches: [main]
-    paths:
-      - '.github/workflows/daily_podcast.yml'
 
 env:
   PYTHON_VERSION: '3.13'
