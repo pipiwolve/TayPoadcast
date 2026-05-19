@@ -72,16 +72,14 @@ async def run_auto_pipeline():
         print(f"   - {item.title[:60]}")
 
     # Step 2: Generate script
-    print("\n🤖 Step 2/4: 使用Claude生成双人播客脚本...")
-    api_key = os.environ.get("ANTHROPIC_API_KEY")
-    if not api_key:
-        print("   ❌ 未设置 ANTHROPIC_API_KEY 环境变量")
-        print("   CI提示: 在 GitHub Secrets 中设置 ANTHROPIC_API_KEY")
-        return None
+    print("\n🤖 Step 2/4: 生成双人播客脚本...")
+    from script_generator import _detect_provider, generate_script
 
-    from script_generator import generate_script_via_api
+    provider = _detect_provider()
+    print(f"   使用 LLM: {provider}")
+
     try:
-        script = generate_script_via_api(digest.to_prompt_context(), api_key)
+        script = generate_script(digest.to_prompt_context())
         print(f"   生成了 {len(script)} 轮对话")
     except Exception as e:
         print(f"   ❌ 脚本生成失败: {e}")
@@ -124,17 +122,14 @@ async def run_full_pipeline(output_path: str):
     for item in digest.items[:5]:
         print(f"   - {item.title[:60]}")
 
-    print("\n🤖 Step 2/3: 使用Claude生成双人播客脚本...")
-    api_key = os.environ.get("ANTHROPIC_API_KEY")
-    if not api_key:
-        print("   ❌ 未设置 ANTHROPIC_API_KEY 环境变量")
-        print("   提示: export ANTHROPIC_API_KEY=sk-ant-...")
-        print("   或者使用 --demo 模式体验效果")
-        return None
+    print("\n🤖 Step 2/3: 生成双人播客脚本...")
+    from script_generator import _detect_provider, generate_script
 
-    from script_generator import generate_script_via_api
+    provider = _detect_provider()
+    print(f"   使用 LLM: {provider}")
+
     try:
-        script = generate_script_via_api(digest.to_prompt_context(), api_key)
+        script = generate_script(digest.to_prompt_context())
         print(f"   生成了 {len(script)} 轮对话")
     except Exception as e:
         print(f"   ❌ 脚本生成失败: {e}")
@@ -167,15 +162,23 @@ async def run_script_only():
     digest = await fetch_all()
     print(digest.to_prompt_context())
 
-    api_key = os.environ.get("ANTHROPIC_API_KEY")
-    if not api_key:
-        print("\n⚠️  未设置 ANTHROPIC_API_KEY，跳过脚本生成")
-        print("   上述新闻内容可手动复制给Claude生成脚本")
+    print("\n🤖 生成播客脚本...")
+    from script_generator import _detect_provider, generate_script
+
+    provider = _detect_provider()
+    has_key = (
+        os.environ.get("ANTHROPIC_API_KEY") or
+        os.environ.get("DEEPSEEK_API_KEY") or
+        os.environ.get("OPENAI_API_KEY")
+    )
+    if not has_key:
+        print(f"\n⚠️  未设置任何 LLM API Key，跳过脚本生成")
+        print("   支持: ANTHROPIC_API_KEY / DEEPSEEK_API_KEY / OPENAI_API_KEY")
+        print("   上述新闻内容可手动复制给 LLM 生成脚本")
         return
 
-    print("\n🤖 生成播客脚本...")
-    from script_generator import generate_script_via_api
-    script = generate_script_via_api(digest.to_prompt_context(), api_key)
+    print(f"   使用 LLM: {provider}")
+    script = generate_script(digest.to_prompt_context())
 
     print(f"\n{'='*60}")
     print(f"  播客脚本 ({len(script)} 轮对话)")
@@ -200,11 +203,17 @@ def print_usage():
     print("  python main.py --demo          # 演示模式 (无需API key)")
     print("  python main.py --script-only   # 只生成脚本")
     print()
-    print("环境变量:")
-    print("  ANTHROPIC_API_KEY     必需: Claude API 密钥")
-    print("  TELEGRAM_BOT_TOKEN    可选: Telegram Bot Token")
-    print("  TELEGRAM_CHAT_ID      可选: Telegram 接收 Chat ID")
-    print("  WX_APPID / WX_SECRET  可选: 微信测试号配置")
+    print("LLM 配置 (三选一):")
+    print("  ANTHROPIC_API_KEY     Claude API")
+    print("  DEEPSEEK_API_KEY      DeepSeek API (推荐，便宜)")
+    print("  OPENAI_API_KEY        OpenAI 或兼容 API")
+    print("  LLM_PROVIDER          可选: anthropic/deepseek/openai (自动检测)")
+    print("  LLM_MODEL             可选: 覆盖默认模型")
+    print()
+    print("通知配置 (可选):")
+    print("  TELEGRAM_BOT_TOKEN    Telegram Bot Token")
+    print("  TELEGRAM_CHAT_ID      Telegram 接收 Chat ID")
+    print("  WX_APPID/WX_SECRET    微信测试号配置")
 
 
 def main():

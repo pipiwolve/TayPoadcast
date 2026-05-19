@@ -1,8 +1,18 @@
-"""Generate two-host Chinese podcast script from news digest using Claude API."""
+"""Generate two-host Chinese podcast script from news digest.
+
+Supports multiple LLM providers:
+  - Anthropic (Claude): set ANTHROPIC_API_KEY
+  - DeepSeek: set DEEPSEEK_API_KEY
+  - Any OpenAI-compatible: set OPENAI_API_KEY + OPENAI_BASE_URL
+
+Select provider via LLM_PROVIDER env var (auto-detected if not set).
+"""
 
 import json
 import os
 import re
+
+import httpx
 
 SYSTEM_PROMPT = """你是一个顶尖的播客脚本作家，专门为AI科技新闻播客撰写双人对谈脚本。
 
@@ -56,10 +66,9 @@ def build_user_prompt(digest_text: str, custom_instructions: str = "") -> str:
 
 
 def parse_script(response_text: str) -> list[dict]:
-    """Parse Claude's response into turn list. Handles both JSON and text formats."""
+    """Parse LLM response into turn list. Handles JSON and text fallback."""
     turns = []
 
-    # Try JSON array extraction
     json_match = re.search(r'\[[\s\S]*\]', response_text)
     if json_match:
         try:
@@ -69,7 +78,6 @@ def parse_script(response_text: str) -> list[dict]:
         except json.JSONDecodeError:
             pass
 
-    # Fallback: parse from text pattern "晓晓：..." or "云扬：..."
     lines = response_text.strip().split("\n")
     for line in lines:
         line = line.strip()
@@ -85,33 +93,145 @@ def parse_script(response_text: str) -> list[dict]:
     return turns
 
 
-def generate_script_via_api(digest_text: str, api_key: str | None = None) -> list[dict]:
-    """Generate script using Anthropic API."""
-    import anthropic
+# ── Provider Detection ────────────────────────────────────
 
+def _detect_provider() -> str:
+    """Auto-detect which LLM provider to use based on env vars."""
+    explicit = os.environ.get("LLM_PROVIDER", "").lower()
+    if explicit in ("anthropic", "deepseek", "openai"):
+        return explicit
+
+    if os.environ.get("DEEPSEEK_API_KEY"):
+        return "deepseek"
+    if os.environ.get("ANTHROPIC_API_KEY"):
+        return "anthropic"
+    if os.environ.get("OPENAI_API_KEY"):
+        return "openai"
+
+    return "anthropic"  # default, will fail with clear message
+
+
+# ── Provider Implementations ──────────────────────────────
+
+def _call_anthropic(digest_text: str, api_key: str | None = None) -> str:
     key = api_key or os.environ.get("ANTHROPIC_API_KEY")
     if not key:
-        raise ValueError("需要设置 ANTHROPIC_API_KEY 环境变量")
+        raise ValueError("未设置 ANTHROPIC_API_KEY")
 
+    import anthropic
+    model = os.environ.get("LLM_MODEL", "claude-sonnet-4-6")
     client = anthropic.Anthropic(api_key=key)
     message = client.messages.create(
-        model="claude-sonnet-4-6",
+        model=model,
         max_tokens=4096,
         temperature=0.85,
         system=SYSTEM_PROMPT,
         messages=[{"role": "user", "content": build_user_prompt(digest_text)}],
     )
+    return message.content[0].text
 
-    raw = message.content[0].text
+
+def _call_deepseek(digest_text: str, api_key: str | None = None) -> str:
+    """Call DeepSeek API (OpenAI-compatible)."""
+    key = api_key or os.environ.get("DEEPSEEK_API_KEY")
+    if not key:
+        raise ValueError("未设置 DEEPSEEK_API_KEY")
+
+    model = os.environ.get("LLM_MODEL", "deepseek-chat")
+    base_url = os.environ.get("DEEPSEEK_BASE_URL", "https://api.deepseek.com")
+
+    return _call_openai_compatible(digest_text, key, base_url, model)
+
+
+def _call_openai_compatible(
+    digest_text: str,
+    api_key: str,
+    base_url: str,
+    model: str,
+) -> str:
+    """Generic OpenAI-compatible chat completions call via httpx."""
+    headers = {
+        "Authorization": f"Bearer {api_key}",
+        "Content-Type": "application/json",
+    }
+    payload = {
+        "model": model,
+        "temperature": 0.85,
+        "max_tokens": 4096,
+        "messages": [
+            {"role": "system", "content": SYSTEM_PROMPT},
+            {"role": "user", "content": build_user_prompt(digest_text)},
+        ],
+    }
+    resp = httpx.post(
+        f"{base_url}/v1/chat/completions",
+        headers=headers,
+        json=payload,
+        timeout=120,
+    )
+    resp.raise_for_status()
+    data = resp.json()
+    return data["choices"][0]["message"]["content"]
+
+
+PROVIDERS = {
+    "anthropic": _call_anthropic,
+    "deepseek": _call_deepseek,
+    "openai": lambda digest, key=None: _call_openai_compatible(
+        digest,
+        key or os.environ["OPENAI_API_KEY"],
+        os.environ.get("OPENAI_BASE_URL", "https://api.openai.com"),
+        os.environ.get("LLM_MODEL", "gpt-4o"),
+    ),
+}
+
+
+# ── Public API ────────────────────────────────────────────
+
+def generate_script(digest_text: str, provider: str | None = None) -> list[dict]:
+    """Generate a two-host podcast script.
+
+    Args:
+        digest_text: Formatted news digest text.
+        provider: 'anthropic', 'deepseek', or 'openai'. Auto-detected if None.
+
+    Returns:
+        List of {"speaker": "晓晓|云扬", "text": "..."} dicts.
+
+    Raises:
+        ValueError: If no API key found for the selected provider.
+    """
+    provider = provider or _detect_provider()
+
+    if provider not in PROVIDERS:
+        raise ValueError(
+            f"未知的 LLM provider: {provider}。"
+            f"支持: {', '.join(PROVIDERS.keys())}"
+        )
+
+    call_fn = PROVIDERS[provider]
+    raw = call_fn(digest_text)
     turns = parse_script(raw)
 
     if not turns:
-        raise ValueError(f"无法解析脚本。原始响应:\n{raw[:500]}")
+        raise ValueError(
+            f"{provider} 返回的脚本无法解析。"
+            f"原始响应 (前500字):\n{raw[:500]}"
+        )
 
+    print(f"  ✓ 使用 {provider} 生成了 {len(turns)} 轮对话")
     return turns
 
 
+# Keep backward-compatible alias
+generate_script_via_api = generate_script
+
+
+# ── Self-test ─────────────────────────────────────────────
+
 if __name__ == "__main__":
-    # Quick test
     print("Script generator module loaded.")
-    print(f"System prompt length: {len(SYSTEM_PROMPT)} chars")
+    detected = _detect_provider()
+    print(f"  检测到的 provider: {detected}")
+    print(f"  可用 providers: {', '.join(PROVIDERS.keys())}")
+    print(f"  System prompt: {len(SYSTEM_PROMPT)} chars")
