@@ -25,7 +25,7 @@ from datetime import datetime
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from fetcher import fetch_all, DailyDigest
-from audio_generator import generate_audio_sync
+from audio_generator import generate_audio, generate_audio_sync
 from notifier import notify_all
 
 DEMO_SCRIPT_PATH = os.path.join(os.path.dirname(__file__), "demo_script.json")
@@ -87,7 +87,7 @@ async def run_auto_pipeline():
 
     # Step 3: Synthesize audio
     print("\n🎙️  Step 3/4: 合成双人播客音频...")
-    output = generate_audio_sync(script, output_path)
+    output = await generate_audio(script, output_path)
     if not output:
         print("   ❌ 音频合成失败")
         return None
@@ -136,7 +136,7 @@ async def run_full_pipeline(output_path: str):
         return None
 
     print("\n🎙️  Step 3/3: 合成音频...")
-    output = generate_audio_sync(script, output_path)
+    output = await generate_audio(script, output_path)
     return output
 
 

@@ -4,14 +4,15 @@ on:
   schedule:
     # 北京时间 10:00 = UTC 2:00
     - cron: '0 2 * * *'
-  workflow_dispatch:  # 允许手动触发
+  workflow_dispatch:
   push:
     branches: [main]
     paths:
-      - '.github/workflows/daily_podcast.yml'  # workflow 变更时触发测试
+      - '.github/workflows/daily_podcast.yml'
 
 env:
   PYTHON_VERSION: '3.13'
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: 'true'
 
 jobs:
   generate-and-notify:
@@ -33,16 +34,37 @@ jobs:
       - name: 安装 Python 依赖
         run: pip install -r requirements.txt
 
+      - name: 检查配置
+        run: |
+          HAS_KEY=false
+          if [ -n "$ANTHROPIC_API_KEY" ] || [ -n "$DEEPSEEK_API_KEY" ] || [ -n "$OPENAI_API_KEY" ]; then
+            HAS_KEY=true
+          fi
+          echo "LLM_KEY_SET=$HAS_KEY" >> $GITHUB_ENV
+
+          HAS_TG=false
+          if [ -n "$TELEGRAM_BOT_TOKEN" ] && [ -n "$TELEGRAM_CHAT_ID" ]; then
+            HAS_TG=true
+          fi
+          echo "TELEGRAM_SET=$HAS_TG" >> $GITHUB_ENV
+
+          echo "LLM API Key: $HAS_KEY"
+          echo "Telegram:     $HAS_TG"
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+
       - name: 运行每日播客管线
         id: podcast
         run: python main.py --auto
         env:
-          # LLM (至少设置一个)
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           LLM_PROVIDER: ${{ vars.LLM_PROVIDER }}
-          # 通知
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
           WX_APPID: ${{ secrets.WX_APPID }}
@@ -59,17 +81,29 @@ jobs:
           retention-days: 7
           compression-level: 0
 
-      - name: 生成每日摘要
+      - name: 生成摘要
         if: always()
         run: |
-          echo "## 📻 今日AI新闻播客" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "**生成时间**: $(TZ='Asia/Shanghai' date '+%Y-%m-%d %H:%M') 北京时间" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          if [ -f output/$(date +%Y%m%d)/script.json ]; then
-            echo "✅ 播客已生成，脚本轮次: $(python -c "import json; d=json.load(open('output/$(date +%Y%m%d)/script.json')); print(len(d))") 轮"
-            echo "" >> $GITHUB_STEP_SUMMARY
-            echo "📥 [下载播客产物](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})" >> $GITHUB_STEP_SUMMARY
-          else
-            echo "⚠️ 播客生成未完成，请查看日志" >> $GITHUB_STEP_SUMMARY
-          fi
+          {
+            echo "## 📻 今日AI新闻播客"
+            echo ""
+            echo "**生成时间**: $(TZ='Asia/Shanghai' date '+%Y-%m-%d %H:%M') 北京时间"
+            echo ""
+            echo "| 配置项 | 状态 |"
+            echo "|---|---|"
+            echo "| LLM API Key | ${{ env.LLM_KEY_SET == 'true' && '✅' || '❌ 未设置' }} |"
+            echo "| Telegram | ${{ env.TELEGRAM_SET == 'true' && '✅' || '⚠️ 未配置' }} |"
+            echo ""
+            if [ -f "output/$(TZ='Asia/Shanghai' date +%Y%m%d)/script.json" ]; then
+              TURNS=$(python -c "import json; d=json.load(open('output/$(TZ='Asia/Shanghai' date +%Y%m%d)/script.json')); print(len(d))")
+              echo "✅ 播客已生成，${TURNS} 轮对话"
+              echo ""
+              echo "[📥 下载产物](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})"
+            else
+              if [ "${{ env.LLM_KEY_SET }}" != "true" ]; then
+                echo "❌ 缺少 LLM API Key，请在 GitHub Secrets 中设置 DEEPSEEK_API_KEY"
+              else
+                echo "⚠️ 播客生成失败，请查看上方日志"
+              fi
+            fi
+          } >> $GITHUB_STEP_SUMMARY
