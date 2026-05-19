@@ -1,0 +1,70 @@
+name: Daily AI News Podcast
+
+on:
+  schedule:
+    # 北京时间 10:00 = UTC 2:00
+    - cron: '0 2 * * *'
+  workflow_dispatch:  # 允许手动触发
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/daily_podcast.yml'  # workflow 变更时触发测试
+
+env:
+  PYTHON_VERSION: '3.13'
+
+jobs:
+  generate-and-notify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v4
+
+      - name: 安装 Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: 安装 ffmpeg
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq ffmpeg
+
+      - name: 安装 Python 依赖
+        run: pip install -r requirements.txt
+
+      - name: 运行每日播客管线
+        id: podcast
+        run: python main.py --auto
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          WX_APPID: ${{ secrets.WX_APPID }}
+          WX_SECRET: ${{ secrets.WX_SECRET }}
+          WX_OPENID: ${{ secrets.WX_OPENID }}
+          WX_TEMPLATE_ID: ${{ secrets.WX_TEMPLATE_ID }}
+
+      - name: 上传播客产物
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: daily-podcast-${{ github.run_id }}
+          path: output/
+          retention-days: 7
+          compression-level: 0
+
+      - name: 生成每日摘要
+        if: always()
+        run: |
+          echo "## 📻 今日AI新闻播客" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**生成时间**: $(TZ='Asia/Shanghai' date '+%Y-%m-%d %H:%M') 北京时间" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          if [ -f output/$(date +%Y%m%d)/script.json ]; then
+            echo "✅ 播客已生成，脚本轮次: $(python -c "import json; d=json.load(open('output/$(date +%Y%m%d)/script.json')); print(len(d))") 轮"
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "📥 [下载播客产物](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "⚠️ 播客生成未完成，请查看日志" >> $GITHUB_STEP_SUMMARY
+          fi
