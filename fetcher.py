@@ -63,16 +63,15 @@ async def fetch_github_trending(client: httpx.AsyncClient) -> list[NewsItem]:
     )
 
     for block in repo_blocks[:10]:
-        title_match = re.search(r'h2[^>]*>\s*<a[^>]*href="([^"]+)"[^>]*>.*?<span[^>]*>([^<]+)', block, re.DOTALL)
-        if not title_match:
-            title_match = re.search(r'h2[^>]*>\s*<a[^>]*href="([^"]+)"[^>]*>\s*([^<]+)', block, re.DOTALL)
+        # Extract href path: /owner/repo → owner/repo
+        href_match = re.search(r'h2[^>]*>\s*<a[^>]*href="([^"]+)"', block)
         desc_match = re.search(r'<p[^>]*class="[^"]*col-9[^"]*"[^>]*>(.*?)</p>', block, re.DOTALL)
         lang_match = re.search(r'<span[^>]*itemprop="programmingLanguage"[^>]*>([^<]+)', block)
         stars_match = re.search(r'(\d[\d,]*)\s*stars\s+today', block, re.IGNORECASE)
 
-        if title_match:
-            path = title_match.group(1).strip()
-            name = title_match.group(2).strip() if title_match.lastindex >= 2 else path.strip("/")
+        if href_match:
+            path = href_match.group(1).strip()
+            name = path.strip("/")  # /owner/repo → owner/repo
             desc = ""
             if desc_match:
                 desc = re.sub(r'<[^>]+>', '', desc_match.group(1)).strip()

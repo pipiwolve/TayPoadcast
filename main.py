@@ -79,7 +79,7 @@ async def run_auto_pipeline():
     print(f"   使用 LLM: {provider}")
 
     try:
-        script = generate_script(digest.to_prompt_context())
+        script, repo_summaries = generate_script(digest.to_prompt_context())
         print(f"   生成了 {len(script)} 轮对话")
     except Exception as e:
         print(f"   ❌ 脚本生成失败: {e}")
@@ -103,6 +103,7 @@ async def run_auto_pipeline():
         audio_path=output,
         script=script,
         digest_items=digest.items,
+        repo_summaries=repo_summaries,
         audio_url=audio_url,
         date_str=date_display,
     )
@@ -136,7 +137,7 @@ async def run_full_pipeline(output_path: str):
     print(f"   使用 LLM: {provider}")
 
     try:
-        script = generate_script(digest.to_prompt_context())
+        script, _ = generate_script(digest.to_prompt_context())
         print(f"   生成了 {len(script)} 轮对话")
     except Exception as e:
         print(f"   ❌ 脚本生成失败: {e}")
@@ -185,9 +186,16 @@ async def run_script_only():
         return
 
     print(f"   使用 LLM: {provider}")
-    script = generate_script(digest.to_prompt_context())
+    script, summaries = generate_script(digest.to_prompt_context())
 
     print(f"\n{'='*60}")
+    print(f"  仓库速览 ({len(summaries)} 条)")
+    print(f"{'='*60}\n")
+    for s in summaries:
+        print(f"  📦 {s.get('name', '?')} ⭐{s.get('stars', '?')} | {s.get('lang', '?')}")
+        print(f"     {s.get('summary', '')}\n")
+
+    print(f"{'='*60}")
     print(f"  播客脚本 ({len(script)} 轮对话)")
     print(f"{'='*60}\n")
     for turn in script:

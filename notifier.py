@@ -89,6 +89,7 @@ async def telegram_send_podcast(
     audio_path: str,
     script: list[dict] | None = None,
     digest_items: list | None = None,
+    repo_summaries: list[dict] | None = None,
     date_str: str = "",
     duration_sec: float = 0,
     token: str | None = None,
@@ -100,25 +101,36 @@ async def telegram_send_podcast(
 
     preview_lines = [f"🎙️ <b>AI新闻播客 | {date_str}</b>\n"]
 
-    if digest_items:
+    # Use Chinese summaries from LLM if available, fallback to raw data
+    if repo_summaries:
         preview_lines.append("📦 <b>本期 GitHub 仓库：</b>")
-        for i, item in enumerate(digest_items[:8]):
-            if item.source == "GitHub热门" and item.stars > 0:
-                star_str = f"⭐{item.stars}"
+        for i, s in enumerate(repo_summaries[:6]):
+            name = s.get("name", "?")
+            stars = s.get("stars", 0)
+            lang = s.get("lang", "")
+            summary = s.get("summary", "")
+            star_str = f"⭐{stars}" if stars else ""
+            lang_str = f" | {lang}" if lang else ""
+            preview_lines.append(f"  {i+1}. <b>{name}</b> — {star_str}{lang_str}")
+            if summary:
+                preview_lines.append(f"     {summary}")
+        preview_lines.append("")
+
+    elif digest_items:
+        preview_lines.append("📦 <b>本期 GitHub 仓库：</b>")
+        for i, item in enumerate(digest_items[:6]):
+            if item.stars > 0:
                 lang_str = f" | {item.language}" if item.language else ""
-                preview_lines.append(f"  {i+1}. <b>{item.title.strip()}</b> — {star_str}{lang_str}")
+                preview_lines.append(f"  {i+1}. <b>{item.title.strip()}</b> — ⭐{item.stars}{lang_str}")
                 if item.description:
-                    desc = item.description[:80].strip()
-                    preview_lines.append(f"     {desc}")
+                    preview_lines.append(f"     {item.description[:80].strip()}")
         preview_lines.append("")
 
     if script:
         minutes = int(duration_sec // 60) if duration_sec else 0
         seconds = int(duration_sec % 60) if duration_sec else 0
-        if minutes:
-            preview_lines.append(f"📻 共 {len(script)} 轮对话 · 时长 {minutes}分{seconds}秒")
-        else:
-            preview_lines.append(f"📻 共 {len(script)} 轮对话")
+        duration_str = f" · 时长 {minutes}分{seconds}秒" if minutes else ""
+        preview_lines.append(f"📻 共 {len(script)} 轮对话{duration_str}")
     preview_lines.append("点击下方音频收听 ↓")
 
     preview = "\n".join(preview_lines)
@@ -209,6 +221,7 @@ async def notify_all(
     audio_path: str,
     script: list[dict] | None = None,
     digest_items: list | None = None,
+    repo_summaries: list[dict] | None = None,
     audio_url: str = "",
     date_str: str = "",
 ) -> dict:
@@ -218,7 +231,6 @@ async def notify_all(
 
     results = {}
 
-    # Get audio duration for preview
     duration_sec = 0
     try:
         import subprocess
@@ -232,25 +244,29 @@ async def notify_all(
     except Exception:
         pass
 
-    # Telegram — repo summary preview + MP3
+    # Telegram — Chinese repo summary preview + MP3
     results["telegram"] = await telegram_send_podcast(
         audio_path=audio_path,
         script=script,
         digest_items=digest_items,
+        repo_summaries=repo_summaries,
         date_str=date_str,
         duration_sec=duration_sec,
     )
 
-    # WeChat — repo summary as template message
+    # WeChat — Chinese repo summary as template message
     if os.environ.get("WX_APPID"):
         top_story = "今日AI热点速递"
-        if digest_items:
-            stars = []
+        if repo_summaries:
+            parts = [f"{s.get('name', '?')}({s.get('summary', '')})" for s in repo_summaries[:4]]
+            top_story = " · ".join(parts)[:120]
+        elif digest_items:
+            parts = []
             for item in digest_items[:5]:
                 if item.stars > 0:
-                    stars.append(f"{item.title.strip()}(⭐{item.stars})")
-            if stars:
-                top_story = " · ".join(stars)[:120]
+                    parts.append(f"{item.title.strip()}(⭐{item.stars})")
+            if parts:
+                top_story = " · ".join(parts)[:120]
         elif script:
             top_story = script[0]["text"][:80]
 

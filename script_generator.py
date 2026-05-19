@@ -33,7 +33,21 @@ SYSTEM_PROMPT = """你是一个顶尖的播客脚本作家，专门为AI科技�
 6. **结尾要有"今日金句"**：一句话总结今天最值得记住的事
 
 ### 输出格式
-输出一个JSON数组，每个元素是一个对话轮次：
+
+你的回复必须包含两个部分，按顺序：
+
+**第一部分：仓库速览**
+用JSON数组列出本期精选的5-7个GitHub仓库的中文简介：
+
+```json
+[
+  {"name": "owner/repo", "stars": 3991, "lang": "Rust", "summary": "一句话中文描述，说明这个仓库是做什么的、为什么值得关注"},
+  ...
+]
+```
+
+**第二部分：播客脚本**
+用JSON数组输出对话脚本：
 
 ```json
 [
@@ -65,32 +79,51 @@ def build_user_prompt(digest_text: str, custom_instructions: str = "") -> str:
     return base
 
 
-def parse_script(response_text: str) -> list[dict]:
-    """Parse LLM response into turn list. Handles JSON and text fallback."""
-    turns = []
+def parse_response(response_text: str) -> tuple[list[dict], list[dict]]:
+    """Parse LLM response into (script_turns, repo_summaries).
 
-    json_match = re.search(r'\[[\s\S]*\]', response_text)
-    if json_match:
+    Extracts two JSON blocks:
+      1. Repo summaries: [{"name": "...", "stars": N, "lang": "...", "summary": "..."}]
+      2. Dialogue script: [{"speaker": "晓晓|云扬", "text": "..."}]
+    """
+    script_turns = []
+    repo_summaries = []
+
+    # Find all JSON arrays in the response
+    json_blocks = re.finditer(r'\[[\s\S]*?\]', response_text)
+
+    candidates = []
+    for match in json_blocks:
         try:
-            turns = json.loads(json_match.group())
-            if isinstance(turns, list) and len(turns) > 0 and isinstance(turns[0], dict):
-                return turns
+            parsed = json.loads(match.group())
+            if isinstance(parsed, list) and len(parsed) > 0 and isinstance(parsed[0], dict):
+                candidates.append(parsed)
         except json.JSONDecodeError:
-            pass
-
-    lines = response_text.strip().split("\n")
-    for line in lines:
-        line = line.strip()
-        if not line:
             continue
-        match = re.match(r'[（(]?(晓晓|云扬)[)）]?\s*[：:]\s*(.+)', line)
-        if match:
-            speaker = match.group(1)
-            text = match.group(2).strip()
-            if len(text) > 5:
-                turns.append({"speaker": speaker, "text": text})
 
-    return turns
+    # Classify each candidate by its keys
+    for cand in candidates:
+        keys = set(cand[0].keys())
+        if "speaker" in keys:
+            script_turns = cand
+        elif "name" in keys and "summary" in keys:
+            repo_summaries = cand
+
+    # Fallback: parse dialogue from text if no JSON script found
+    if not script_turns:
+        lines = response_text.strip().split("\n")
+        for line in lines:
+            line = line.strip()
+            if not line:
+                continue
+            match = re.match(r'[（(]?(晓晓|云扬)[)）]?\s*[：:]\s*(.+)', line)
+            if match:
+                speaker = match.group(1)
+                text = match.group(2).strip()
+                if len(text) > 5:
+                    script_turns.append({"speaker": speaker, "text": text})
+
+    return script_turns, repo_summaries
 
 
 # ── Provider Detection ────────────────────────────────────
@@ -188,15 +221,17 @@ PROVIDERS = {
 
 # ── Public API ────────────────────────────────────────────
 
-def generate_script(digest_text: str, provider: str | None = None) -> list[dict]:
-    """Generate a two-host podcast script.
+def generate_script(digest_text: str, provider: str | None = None) -> tuple[list[dict], list[dict]]:
+    """Generate a two-host podcast script + Chinese repo summaries.
 
     Args:
         digest_text: Formatted news digest text.
         provider: 'anthropic', 'deepseek', or 'openai'. Auto-detected if None.
 
     Returns:
-        List of {"speaker": "晓晓|云扬", "text": "..."} dicts.
+        (script_turns, repo_summaries) where:
+          - script_turns: [{"speaker": "晓晓|云扬", "text": "..."}]
+          - repo_summaries: [{"name": "owner/repo", "stars": N, "lang": "...", "summary": "中文简介"}]
 
     Raises:
         ValueError: If no API key found for the selected provider.
@@ -211,7 +246,7 @@ def generate_script(digest_text: str, provider: str | None = None) -> list[dict]
 
     call_fn = PROVIDERS[provider]
     raw = call_fn(digest_text)
-    turns = parse_script(raw)
+    turns, summaries = parse_response(raw)
 
     if not turns:
         raise ValueError(
@@ -219,8 +254,9 @@ def generate_script(digest_text: str, provider: str | None = None) -> list[dict]
             f"原始响应 (前500字):\n{raw[:500]}"
         )
 
-    print(f"  ✓ 使用 {provider} 生成了 {len(turns)} 轮对话")
-    return turns
+    print(f"  ✓ 使用 {provider} 生成了 {len(turns)} 轮对话" +
+          (f", {len(summaries)} 条中文仓库简介" if summaries else ""))
+    return turns, summaries
 
 
 # Keep backward-compatible alias
