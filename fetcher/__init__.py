@@ -3,10 +3,11 @@
 import httpx
 
 from fetcher.base import BaseFetcher, DailyDigest, NewsItem
+from fetcher.finance import FinanceFetcher
 from fetcher.tech import TechFetcher
 
 __all__ = [
-    "BaseFetcher", "DailyDigest", "NewsItem", "TechFetcher",
+    "BaseFetcher", "DailyDigest", "NewsItem", "FinanceFetcher", "TechFetcher",
     "fetch_all", "fetch_github_trending", "fetch_hn_top_stories", "fetch_hn_ai_articles",
 ]
 
