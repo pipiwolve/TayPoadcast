@@ -1,0 +1,43 @@
+# TayPoadcast 配置文件
+# CLI 菜单 (python cli_menu.py) 可直接修改此文件
+
+# 全局设置
+global:
+  llm_provider: auto       # auto / deepseek / anthropic / openai
+  llm_model: ""            # 留空使用默认模型
+  max_items_per_domain: 20 # 每个领域最多抓取多少条
+
+# 通知渠道
+notifications:
+  telegram: true   # 需要设置 TELEGRAM_BOT_TOKEN + TELEGRAM_CHAT_ID
+  wechat: true     # 需要设置 WX_APPID + WX_SECRET + WX_OPENID + WX_TEMPLATE_ID
+
+# 领域模块配置 (enabled: true 才会运行)
+domains:
+  tech:
+    enabled: true
+    name: "技术资讯"
+    description: "GitHub Trending + Hacker News AI 热点"
+    prompt_extra: "重点关注 AI 大模型、开源框架、开发者工具、编程语言新特性"
+    emoji: "🤖"
+
+  finance:
+    enabled: false
+    name: "财经资讯"
+    description: "雪球热帖 + 财联社电报"
+    prompt_extra: "重点关注 A 股、港股、宏观经济政策、行业板块轮动、投资策略"
+    emoji: "📈"
+
+  academic:
+    enabled: false
+    name: "学术前沿"
+    description: "arXiv 最新论文速递"
+    prompt_extra: "用通俗语言解释论文的核心创新点、方法和实际应用价值，避免堆砌术语"
+    emoji: "📚"
+
+  general:
+    enabled: false
+    name: "综合新闻"
+    description: "微博热搜 + 知乎热榜 + 新浪要闻"
+    prompt_extra: "以大众视角解读社会热点，关注事件背景和舆论走向"
+    emoji: "🌐"
