@@ -355,15 +355,24 @@ def get_notify_config():
         os.environ.get("WX_APPID") and os.environ.get("WX_SECRET")
         and os.environ.get("WX_OPENID") and os.environ.get("WX_TEMPLATE_ID")
     )
+    feishu_ok = bool(
+        os.environ.get("FEISHU_APP_ID") and os.environ.get("FEISHU_APP_SECRET")
+        and os.environ.get("FEISHU_RECEIVE_ID")
+    )
     return jsonify({
         "telegram": telegram_ok,
         "wechat": wechat_ok,
+        "feishu": feishu_ok,
     })
 
 
 @app.route("/api/notify/<task_id>", methods=["POST"])
 def trigger_notify(task_id: str):
-    """Push generated podcast results to configured notification channels (sync)."""
+    """Push generated podcast results to configured notification channels (sync).
+
+    Accepts optional JSON body:
+      {"feishu": {"app_id": "...", "app_secret": "...", "receive_id": "..."}}
+    """
     task = _tasks.get(task_id)
     if not task:
         return jsonify({"error": "任务不存在"}), 404
@@ -393,17 +402,30 @@ def trigger_notify(task_id: str):
     if not domain_results:
         return jsonify({"error": "没有已完成的领域"}), 400
 
+    # Parse optional Feishu credentials from request body
+    feishu_creds = {}
+    try:
+        body = request.get_json(silent=True) or {}
+        feishu_creds = body.get("feishu", {})
+    except Exception:
+        pass
+
     try:
         loop = asyncio.new_event_loop()
         asyncio.set_event_loop(loop)
         notify_results = loop.run_until_complete(
-            notify_multi_domain(domain_results, date_str=date_str)
+            notify_multi_domain(
+                domain_results,
+                date_str=date_str,
+                feishu_creds=feishu_creds if feishu_creds else None,
+            )
         )
         loop.close()
 
         task["notify_results"] = {
             "telegram": bool(notify_results.get("telegram")),
             "wechat": bool(notify_results.get("wechat")),
+            "feishu": bool(notify_results.get("feishu")),
         }
         return jsonify({
             "status": "done",
@@ -649,6 +671,14 @@ body{
 .push-btn .push-icon{font-size:18px}
 .push-btn .push-label{font-size:13px}
 
+.feishu-config{display:none;margin-top:12px;padding:14px 16px;background:rgba(200,148,106,.04);border-radius:8px;border:1px solid var(--border)}
+.feishu-config.visible{display:block}
+.feishu-config .config-title{font-size:13px;color:var(--text-secondary);margin-bottom:10px}
+.feishu-config label{display:block;font-size:12px;color:var(--text-muted);margin-bottom:4px;margin-top:8px}
+.feishu-config label:first-of-type{margin-top:0}
+.feishu-config input{width:100%;padding:7px 10px;font-size:12px;background:var(--bg-secondary);border:1px solid var(--border);border-radius:6px;color:var(--text-primary);box-sizing:border-box;font-family:var(--font-mono)}
+.feishu-config input:focus{outline:none;border-color:var(--accent)}
+
 /* ── Spinner ── */
 .spinner{
   display:inline-block;width:12px;height:12px;
@@ -743,6 +773,15 @@ body{
   <div class="push-section" id="pushSection">
     <div class="push-title">推送到通讯软件</div>
     <div class="push-buttons" id="pushButtons"></div>
+    <div class="feishu-config" id="feishuConfig">
+      <div class="config-title">飞书机器人配置</div>
+      <label>APP ID</label>
+      <input type="text" id="feishuAppId" placeholder="cli_xxxxxxxxxxxxxxxx" autocomplete="off">
+      <label>APP SECRET</label>
+      <input type="password" id="feishuAppSecret" placeholder="飞书应用 Secret" autocomplete="off">
+      <label>RECEIVE ID</label>
+      <input type="text" id="feishuReceiveId" placeholder="ou_xxxxxxxx 或 chat_id" autocomplete="off">
+    </div>
   </div>
 
   <audio class="audio-player" id="audioPlayer" controls onended="onAudioEnded()"></audio>
@@ -959,11 +998,28 @@ function renderPushButtons(data) {
       if (cfg.wechat) {
         html += '<button class="push-btn" id="pushWechat" onclick="pushNotify(currentTaskId)"><span class="push-icon">💬</span><span class="push-label">推送到微信</span></button>';
       }
+      // Feishu: always show (user enters credentials in form)
+      html += '<button class="push-btn" id="pushFeishu" onclick="toggleFeishuConfig()"><span class="push-icon">📄</span><span class="push-label">推送到飞书</span></button>';
       if (!html) {
-        html = '<div style=\"text-align:center;color:var(--text-muted);font-size:13px;padding:8px\">未配置通知渠道。设置 TELEGRAM_BOT_TOKEN / WX_APPID 等环境变量后重启服务。</div>';
+        html = '<div style=\"text-align:center;color:var(--text-muted);font-size:13px;padding:8px\">未配置通知渠道。设置环境变量后重启服务。</div>';
       }
       container.innerHTML = html;
     });
+}
+
+function toggleFeishuConfig() {
+  const cfgDiv = document.getElementById('feishuConfig');
+  const isVisible = cfgDiv.classList.contains('visible');
+  if (isVisible) {
+    cfgDiv.classList.remove('visible');
+    return;
+  }
+  // Show config form
+  cfgDiv.classList.add('visible');
+  // Change button to send action
+  const btn = document.getElementById('pushFeishu');
+  btn.onclick = function() { pushFeishuWithConfig(currentTaskId); };
+  btn.querySelector('.push-label').textContent = '发送到飞书 →';
 }
 
 function pushNotify(taskId) {
@@ -976,22 +1032,103 @@ function pushNotify(taskId) {
     .then(resp => {
       if (resp.status === 'done' && resp.results) {
         const r = resp.results;
-        if (r.telegram || r.wechat) {
-          buttons.forEach(b => { b.classList.add('sent'); b.querySelector('.push-label').textContent = '已发送 ✓'; });
-        } else {
-          buttons.forEach(b => { b.classList.add('failed'); b.querySelector('.push-label').textContent = '发送失败，请检查配置'; b.disabled = false; });
-        }
+        // Update each button individually based on channel result
+        const channelMap = [
+          { btnId: 'pushTelegram', key: 'telegram', label: '推送到 Telegram' },
+          { btnId: 'pushWechat', key: 'wechat', label: '推送到微信' },
+          { btnId: 'pushFeishu', key: 'feishu', label: '推送到飞书' },
+        ];
+        channelMap.forEach(ch => {
+          const btn = document.getElementById(ch.btnId);
+          if (!btn) return;
+          if (r[ch.key] === true) {
+            btn.classList.add('sent');
+            btn.querySelector('.push-label').textContent = '已发送 ✓';
+          } else if (r.hasOwnProperty(ch.key)) {
+            btn.classList.add('failed');
+            btn.querySelector('.push-label').textContent = '发送失败 ✗';
+          }
+        });
       } else if (resp.error) {
-        buttons.forEach(b => { b.classList.add('failed'); b.querySelector('.push-label').textContent = '失败: ' + resp.error.substring(0, 30); b.disabled = false; });
+        buttons.forEach(b => {
+          b.classList.add('failed');
+          b.querySelector('.push-label').textContent = '失败: ' + resp.error.substring(0, 30);
+        });
       } else {
-        buttons.forEach(b => { b.classList.add('failed'); b.querySelector('.push-label').textContent = '未知错误'; b.disabled = false; });
+        buttons.forEach(b => {
+          b.classList.add('failed');
+          b.querySelector('.push-label').textContent = '未知错误';
+        });
       }
       setTimeout(() => {
-        buttons.forEach(b => { b.disabled = false; b.classList.remove('sent', 'failed'); b.querySelector('.push-label').textContent = b.id === 'pushTelegram' ? '推送到 Telegram' : '推送到微信'; });
+        buttons.forEach(b => {
+          b.disabled = false;
+          b.classList.remove('sent', 'failed');
+          const labelMap = {
+            'pushTelegram': '推送到 Telegram',
+            'pushWechat': '推送到微信',
+            'pushFeishu': '推送到飞书',
+          };
+          b.querySelector('.push-label').textContent = labelMap[b.id] || '推送';
+        });
       }, 8000);
     })
     .catch(() => {
-      buttons.forEach(b => { b.classList.add('failed'); b.querySelector('.push-label').textContent = '请求失败 ✗'; b.disabled = false; });
+      buttons.forEach(b => {
+        b.classList.add('failed');
+        b.querySelector('.push-label').textContent = '请求失败 ✗';
+        b.disabled = false;
+      });
+    });
+}
+
+function pushFeishuWithConfig(taskId) {
+  const appId = document.getElementById('feishuAppId').value.trim();
+  const appSecret = document.getElementById('feishuAppSecret').value.trim();
+  const receiveId = document.getElementById('feishuReceiveId').value.trim();
+
+  if (!appId || !appSecret || !receiveId) {
+    alert('请填写完整的飞书配置：APP ID、APP SECRET、RECEIVE ID');
+    return;
+  }
+
+  const btn = document.getElementById('pushFeishu');
+  btn.disabled = true;
+  btn.querySelector('.push-label').textContent = '发送中...';
+
+  fetch('/api/notify/' + taskId, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      feishu: {
+        app_id: appId,
+        app_secret: appSecret,
+        receive_id: receiveId,
+        receive_id_type: 'open_id',
+      }
+    })
+  })
+    .then(r => r.json())
+    .then(resp => {
+      if (resp.status === 'done' && resp.results && resp.results.feishu) {
+        btn.classList.add('sent');
+        btn.querySelector('.push-label').textContent = '飞书已发送 ✓';
+      } else {
+        btn.classList.add('failed');
+        btn.querySelector('.push-label').textContent = '飞书发送失败 ✗';
+        btn.disabled = false;
+      }
+      setTimeout(() => {
+        btn.disabled = false;
+        btn.classList.remove('sent', 'failed');
+        btn.querySelector('.push-label').textContent = '推送到飞书';
+        btn.onclick = function() { toggleFeishuConfig(); };
+      }, 8000);
+    })
+    .catch(() => {
+      btn.classList.add('failed');
+      btn.querySelector('.push-label').textContent = '请求失败 ✗';
+      btn.disabled = false;
     });
 }
 
