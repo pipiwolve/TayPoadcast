@@ -22,13 +22,21 @@ import os
 import sys
 from datetime import datetime
 
+import yaml
+
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from fetcher import fetch_all, DailyDigest
 from audio_generator import generate_audio, generate_audio_sync
-from notifier import notify_all
+from notifier import notify_all, notify_multi_domain
 
 DEMO_SCRIPT_PATH = os.path.join(os.path.dirname(__file__), "demo_script.json")
+CONFIG_PATH = os.path.join(os.path.dirname(__file__), "config.yaml")
+
+
+def _load_config() -> dict:
+    with open(CONFIG_PATH, "r", encoding="utf-8") as f:
+        return yaml.safe_load(f)
 
 
 def _load_demo_script() -> list[dict]:
@@ -59,67 +67,113 @@ def _save_artifacts(script: list[dict], audio_path: str, date_str: str):
 
 
 async def run_auto_pipeline():
-    """Auto-pilot: fetch → generate script → synthesize → notify → save."""
+    """Multi-domain auto-pilot: for each enabled domain, fetch → script → audio → notify."""
+    config = _load_config()
+    domains = config.get("domains", {})
+    enabled = {k: v for k, v in domains.items() if v.get("enabled", False)}
+
+    if not enabled:
+        print("⚠️  没有启用的领域模块。请运行 python cli_menu.py 选择领域。")
+        return None
+
     date_str = datetime.now().strftime("%Y%m%d")
     date_display = datetime.now().strftime("%Y年%m月%d日")
-    output_path = f"output/{date_str}/podcast_{date_str}.mp3"
 
-    # Step 1: Fetch
-    print(f"\n📡 Step 1/4: 获取今日AI热点...")
-    digest = await fetch_all()
-    print(f"   获取到 {len(digest.items)} 条新闻")
-    for item in digest.items[:5]:
-        print(f"   - {item.title[:60]}")
-
-    # Step 2: Generate script
-    print("\n🤖 Step 2/4: 生成双人播客脚本...")
+    from fetcher import FETCHER_REGISTRY
     from script_generator import _detect_provider, generate_script
 
     provider = _detect_provider()
-    print(f"   使用 LLM: {provider}")
+    print(f"🎯 使用 LLM: {provider}")
+    print(f"📻 启用的领域: {[v['name'] for v in enabled.values()]}\n")
 
-    try:
-        script, repo_summaries = generate_script(digest.to_prompt_context())
-        print(f"   生成了 {len(script)} 轮对话")
-    except Exception as e:
-        print(f"   ❌ 脚本生成失败: {e}")
-        return None
+    domain_results = []
 
-    # Step 3: Synthesize audio
-    print("\n🎙️  Step 3/4: 合成双人播客音频...")
-    output = await generate_audio(script, output_path)
-    if not output:
-        print("   ❌ 音频合成失败")
-        return None
+    for domain_key, domain_cfg in enabled.items():
+        domain_name = domain_cfg.get("name", domain_key)
+        domain_emoji = domain_cfg.get("emoji", "")
+        domain_prompt = domain_cfg.get("prompt_extra", "")
 
-    # Step 4: Notify
-    print("\n📤 Step 4/4: 推送通知...")
-    audio_url = ""
-    base_url = os.environ.get("AUDIO_BASE_URL", "")
-    if base_url:
-        audio_url = f"{base_url}/{date_str}/podcast_{date_str}.mp3"
-        print(f"   MP3 公网链接: {audio_url}")
-    results = await notify_all(
-        audio_path=output,
-        script=script,
-        digest_items=digest.items,
-        repo_summaries=repo_summaries,
-        audio_url=audio_url,
-        date_str=date_display,
-    )
+        print(f"\n{'='*60}")
+        print(f"  {domain_emoji} 开始处理: {domain_name}")
+        print(f"{'='*60}")
 
-    # Save artifacts
-    _save_artifacts(script, output_path, date_str)
+        # Step 1: Fetch
+        print(f"\n📡 Step 1/4: 获取{domain_name}热点...")
+        fetcher_cls = FETCHER_REGISTRY.get(domain_key)
+        if not fetcher_cls:
+            print(f"   ❌ 未知领域: {domain_key}，跳过")
+            continue
 
-    # Summary
-    channels_sent = [k for k, v in results.items() if v]
-    if channels_sent:
-        print(f"\n✅ 全管线完成！已通过 {', '.join(channels_sent)} 推送")
+        try:
+            digest = await fetcher_cls().fetch()
+            print(f"   获取到 {len(digest.items)} 条新闻")
+            for item in digest.items[:3]:
+                print(f"   - {item.title[:60]}")
+        except Exception as e:
+            print(f"   ❌ 采集失败: {e}")
+            continue
+
+        if not digest.items:
+            print(f"   ⚠️  无新闻，跳过 {domain_name}")
+            continue
+
+        # Step 2: Generate script
+        print(f"\n🤖 Step 2/4: 生成{domain_name}播客脚本...")
+        try:
+            script, repo_summaries = generate_script(
+                digest.to_prompt_context(),
+                domain_name=domain_name,
+                domain_prompt_extra=domain_prompt,
+            )
+            print(f"   生成了 {len(script)} 轮对话")
+        except Exception as e:
+            print(f"   ❌ 脚本生成失败: {e}")
+            continue
+
+        # Step 3: Synthesize audio
+        domain_output_dir = f"output/{date_str}/{domain_key}"
+        os.makedirs(domain_output_dir, exist_ok=True)
+        output_path = f"{domain_output_dir}/podcast_{date_str}.mp3"
+
+        print(f"\n🎙️  Step 3/4: 合成{domain_name}播客音频...")
+        try:
+            audio_result = await generate_audio(script, output_path)
+            if not audio_result:
+                raise RuntimeError("音频合成为空")
+        except Exception as e:
+            print(f"   ❌ 音频合成失败: {e}")
+            continue
+
+        # Save artifacts
+        script_path = os.path.join(domain_output_dir, "script.json")
+        with open(script_path, "w", encoding="utf-8") as f:
+            json.dump(script, f, ensure_ascii=False, indent=2)
+        print(f"  ✓ 脚本已保存: {script_path}")
+        print(f"  ✓ 播客已保存: {output_path}")
+
+        domain_results.append({
+            "domain": domain_key,
+            "name": domain_name,
+            "audio_path": audio_result,
+            "script": script,
+            "repo_summaries": repo_summaries,
+            "digest_items": digest.items,
+        })
+
+    # Step 4: Aggregated notification
+    if domain_results:
+        print(f"\n📤 Step 4/4: 推送多领域播客 ({len(domain_results)} 个领域)...")
+        results = await notify_multi_domain(domain_results, date_str=date_display)
+
+        channels_sent = [k for k, v in results.items() if v]
+        if channels_sent:
+            print(f"\n✅ 全管线完成！已通过 {', '.join(channels_sent)} 推送 {len(domain_results)} 个领域播客")
+        else:
+            print(f"\n⚠️  管线完成但未配置通知渠道")
     else:
-        print(f"\n⚠️  管线完成但未配置通知渠道")
-        print("   设置 TELEGRAM_BOT_TOKEN + TELEGRAM_CHAT_ID 启用 Telegram 推送")
+        print("\n⚠️  所有领域均处理失败")
 
-    return output
+    return domain_results
 
 
 async def run_full_pipeline(output_path: str):
