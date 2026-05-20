@@ -310,20 +310,24 @@ async def notify_multi_domain(
     results = {}
 
     # Telegram: send each domain's podcast separately
+    telegram_ok = False
     for dr in domain_results:
         domain_tag = f"[{dr['name']}]"
         audio_path = dr.get("audio_path", "")
         if not audio_path or not os.path.exists(audio_path):
+            print(f"  ⚠️  跳过 {domain_tag}: audio_path 不存在 ({audio_path})")
             continue
 
-        await telegram_send_podcast(
+        res = await telegram_send_podcast(
             audio_path=audio_path,
             script=dr.get("script"),
             repo_summaries=dr.get("repo_summaries"),
             date_str=f"{date_str} {domain_tag}",
         )
+        if res.get("text") or res.get("audio"):
+            telegram_ok = True
 
-    results["telegram"] = True
+    results["telegram"] = telegram_ok
 
     # WeChat: send one aggregated text briefing for all domains
     if os.environ.get("WX_APPID"):

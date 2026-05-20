@@ -1,18 +1,13 @@
-"""General news fetcher: RSS feeds from multiple outlets."""
+"""General news fetcher: Bilibili hot search + Sina news roll API."""
 
 import asyncio
-import re
 
 import httpx
 
 from fetcher.base import BaseFetcher, DailyDigest, NewsItem
 
-# Public RSS feeds accessible from GitHub Actions
-RSS_FEEDS = [
-    ("https://rsshub.app/weibo/search/hot", "微博热搜"),
-    ("https://rsshub.app/zhihu/hotlist", "知乎热榜"),
-    ("http://rss.sina.com.cn/news/marquee/ddt.xml", "新浪要闻"),
-]
+BILIBILI_API = "https://api.bilibili.com/x/web-interface/wbi/search/square"
+SINA_ROLL_API = "https://feed.mix.sina.com.cn/api/roll/get"
 
 
 class GeneralFetcher(BaseFetcher):
@@ -20,8 +15,9 @@ class GeneralFetcher(BaseFetcher):
 
     async def fetch(self) -> DailyDigest:
         async with httpx.AsyncClient() as client:
-            tasks = [self._fetch_rss(client, url, label) for url, label in RSS_FEEDS]
-            results = await asyncio.gather(*tasks)
+            bili_task = self._fetch_bilibili(client)
+            sina_task = self._fetch_sina_roll(client)
+            results = await asyncio.gather(bili_task, sina_task)
 
         all_items = []
         for r in results:
@@ -36,56 +32,77 @@ class GeneralFetcher(BaseFetcher):
                 unique.append(item)
 
         unique.sort(key=lambda x: x.stars, reverse=True)
-        return DailyDigest(domain=self.domain, items=unique[:20])
+        return DailyDigest(domain=self.domain, items=unique[:25])
 
-    async def _fetch_rss(
-        self, client: httpx.AsyncClient, url: str, label: str
-    ) -> list[NewsItem]:
+    async def _fetch_bilibili(self, client: httpx.AsyncClient) -> list[NewsItem]:
         try:
             resp = await client.get(
-                url,
+                BILIBILI_API,
+                params={"limit": 50},
                 headers={
-                    "User-Agent": "Mozilla/5.0",
-                    "Accept": "application/rss+xml, application/xml, text/xml",
+                    "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36",
+                    "Referer": "https://www.bilibili.com/",
                 },
-                timeout=20,
+                timeout=15,
             )
             resp.raise_for_status()
+            data = resp.json()
+            items_data = data.get("data", {}).get("trending", {}).get("list", [])
         except Exception as e:
-            print(f"  [{label}] 请求失败: {e}")
+            print(f"  [B站热搜] 请求失败: {e}")
             return []
 
-        text = resp.text
-        # Try RSS <item> first, then Atom <entry>
-        items_xml = re.findall(r"<item>(.*?)</item>", text, re.DOTALL)
-        if not items_xml:
-            items_xml = re.findall(r"<entry>(.*?)</entry>", text, re.DOTALL)
-
         items = []
-        for entry in items_xml[:10]:
-            title = _rss_text(entry, "title")
-            link = _rss_text(entry, "link")
-            desc = _rss_text(entry, "description")
-
-            if title:
-                items.append(NewsItem(
-                    title=title.strip()[:150],
-                    url=link or url,
-                    description=desc.strip()[:200] if desc else "",
-                    source=label,
-                    stars=0,
-                ))
+        for it in items_data[:20]:
+            keyword = it.get("keyword", "").strip()
+            if not keyword:
+                continue
+            show_name = it.get("show_name", "") or ""
+            items.append(NewsItem(
+                title=f"{keyword}  {show_name}".strip()[:150],
+                url=f"https://search.bilibili.com/all?keyword={keyword}",
+                description=f"B站热搜: {keyword}",
+                source="B站热搜",
+                stars=it.get("heat", 0) or 0,
+            ))
         return items
 
+    async def _fetch_sina_roll(self, client: httpx.AsyncClient) -> list[NewsItem]:
+        try:
+            resp = await client.get(
+                SINA_ROLL_API,
+                params={
+                    "pageid": "153",
+                    "lid": "2509",
+                    "k": "",
+                    "num": 20,
+                    "page": 1,
+                },
+                headers={
+                    "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36",
+                    "Referer": "https://news.sina.com.cn/",
+                },
+                timeout=15,
+            )
+            resp.raise_for_status()
+            data = resp.json()
+            items_data = data.get("result", {}).get("data", [])
+        except Exception as e:
+            print(f"  [新浪新闻] 请求失败: {e}")
+            return []
 
-def _rss_text(xml: str, tag: str) -> str:
-    # Try standard closing tag
-    match = re.search(rf"<{tag}[^>]*>(.*?)</{tag}>", xml, re.DOTALL)
-    if match:
-        return re.sub(r"<[^>]+>", "", match.group(1)).strip()
-    # Try self-closing tag with href attribute (Atom-style links)
-    if tag == "link":
-        match = re.search(rf'<{tag}[^>]*href="([^"]+)"', xml)
-        if match:
-            return match.group(1)
-    return ""
+        items = []
+        for it in items_data[:15]:
+            title = (it.get("title") or it.get("intro") or "").strip()
+            if not title:
+                continue
+            url = it.get("url", "")
+            ctime = it.get("ctime", "")
+            items.append(NewsItem(
+                title=title[:150],
+                url=url,
+                description=(it.get("intro") or "")[:200],
+                source=f"新浪新闻 · {ctime}",
+                stars=int(it.get("total_num", 0) or 0),
+            ))
+        return items
