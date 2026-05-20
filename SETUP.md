@@ -106,3 +106,43 @@ python main.py --auto
 # 北京时间 21:00 = UTC 13:00
 - cron: '0 13 * * *'
 ```
+
+## 六、多领域模块配置
+
+### 启用新领域
+
+编辑 `config.yaml`，将对应领域的 `enabled` 设为 `true`：
+
+```yaml
+domains:
+  finance:
+    enabled: true   # 改为 true 即可
+```
+
+或运行交互式菜单：
+
+```bash
+python cli_menu.py
+# 选择 "选择领域模块" → 输入对应编号 → 保存
+```
+
+### 可用领域
+
+| 领域 | 信息源 | 适用人群 |
+|------|--------|---------|
+| 技术资讯 (tech) | GitHub Trending + Hacker News | 开发者、AI 从业者 |
+| 财经资讯 (finance) | 雪球热帖 + 财联社电报 | 股民、金融从业者 |
+| 学术前沿 (academic) | arXiv 最新论文 | 研究人员、研究生 |
+| 综合新闻 (general) | 微博热搜 + 知乎热榜 + 新浪要闻 | 大众用户 |
+
+### 自定义领域 Prompt
+
+每个领域的 `prompt_extra` 字段决定 LLM 生成播客时的侧重方向，例如：
+
+```yaml
+finance:
+  prompt_extra: "重点关注 A 股市场、宏观经济政策、行业轮动"
+```
+
+修改后播客内容会更聚焦于你关心的方向。
+```

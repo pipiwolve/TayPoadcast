@@ -45,6 +45,7 @@ AI新闻早报 | 5月20日
 - **双通道推送** — Telegram 直接发 MP3，微信发文字简报
 - **GitHub Pages 托管** — 播客自动部署到公网，支持在线播放
 - **完全自动化** — GitHub Actions 定时触发，每天 10 点准时推送
+- **多领域模块化** — 技术/财经/学术/综合新闻，按需启用，每个领域独立生成播客
 
 ---
 
@@ -104,7 +105,14 @@ GitHub Actions (cron: 每天 10:00 北京时间)
 ```
 .
 ├── main.py                 # 入口：4 种运行模式
-├── fetcher.py              # 数据采集（GitHub Trending + HN）
+├── fetcher/                  # 多领域信息源模块（热插拔架构）
+│   ├── base.py               # BaseFetcher 基类 + 数据结构
+│   ├── tech.py               # 技术模块（GitHub Trending + HN）
+│   ├── finance.py            # 财经模块（雪球 + 财联社）
+│   ├── academic.py           # 学术模块（arXiv 论文）
+│   └── general.py            # 综合新闻模块（微博 + 知乎 + 新浪）
+├── config.yaml               # 领域配置（启用/停用/自定义 prompt）
+├── cli_menu.py               # 交互式配置菜单
 ├── script_generator.py     # LLM 脚本生成（多 Provider）
 ├── audio_generator.py      # Edge TTS 双人语音合成
 ├── notifier.py             # Telegram + 微信推送
@@ -133,6 +141,16 @@ python main.py --auto
 
 # 只生成脚本查看内容
 python main.py --script-only
+```
+
+### 多领域配置
+
+```bash
+# 交互式菜单 — 选择领域、自定义 prompt
+python cli_menu.py
+
+# 或直接编辑 config.yaml
+# 将 finance.enabled 改为 true 即可启用财经播客
 ```
 
 ---
