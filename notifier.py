@@ -215,6 +215,257 @@ async def wechat_send_template(
             return False
 
 
+# ── Feishu (飞书) ──────────────────────────────────────────
+
+FEISHU_API = "https://open.feishu.cn/open-apis/{path}"
+
+_feishu_token_cache: dict = {}  # {"token": "t-xxx", "expires_at": 1716200000.0}
+
+
+async def _feishu_get_tenant_token(
+    app_id: str,
+    app_secret: str,
+) -> str | None:
+    """Get tenant_access_token, cached for 2h."""
+    import time
+
+    now = time.time()
+    cached = _feishu_token_cache
+    if cached.get("token") and cached.get("expires_at", 0) > now + 60:
+        return cached["token"]
+
+    url = FEISHU_API.format(path="auth/v3/tenant_access_token/internal")
+    async with httpx.AsyncClient() as client:
+        try:
+            resp = await client.post(url, json={
+                "app_id": app_id,
+                "app_secret": app_secret,
+            }, timeout=15)
+            data = resp.json()
+            if data.get("code") == 0:
+                token = data["tenant_access_token"]
+                expire = data.get("expire", 7200)
+                cached["token"] = token
+                cached["expires_at"] = now + expire - 120
+                return token
+            print(f"  ✗ 飞书 tenant_access_token 获取失败: {data}")
+            return None
+        except Exception as e:
+            print(f"  ✗ 飞书 API 请求失败: {e}")
+            return None
+
+
+async def feishu_upload_file(
+    file_path: str,
+    file_type: str = "stream",
+    token: str | None = None,
+    app_id: str | None = None,
+    app_secret: str | None = None,
+) -> str | None:
+    """Upload a file to Feishu IM. Returns file_key or None."""
+    token = token or await _feishu_get_tenant_token(
+        app_id or os.environ.get("FEISHU_APP_ID", ""),
+        app_secret or os.environ.get("FEISHU_APP_SECRET", ""),
+    )
+    if not token:
+        print("  ⚠️  飞书 token 获取失败，跳过文件上传")
+        return None
+
+    if not os.path.exists(file_path):
+        print(f"  ✗ 文件不存在: {file_path}")
+        return None
+
+    file_size_mb = os.path.getsize(file_path) / (1024 * 1024)
+    if file_size_mb > 30:
+        print(f"  ✗ 文件过大 ({file_size_mb:.1f}MB)，飞书限制 30MB")
+        return None
+
+    url = FEISHU_API.format(path="im/v1/files")
+    async with httpx.AsyncClient() as client:
+        try:
+            with open(file_path, "rb") as f:
+                files = {"file": (os.path.basename(file_path), f, "audio/mpeg")}
+                data = {
+                    "file_type": file_type,
+                    "file_name": os.path.basename(file_path),
+                }
+                resp = await client.post(
+                    url,
+                    data=data,
+                    files=files,
+                    headers={"Authorization": f"Bearer {token}"},
+                    timeout=60,
+                )
+            resp_data = resp.json()
+            if resp_data.get("code") == 0:
+                file_key = resp_data["data"]["file_key"]
+                print(f"  ✓ 飞书文件已上传 ({file_size_mb:.1f}MB) -> {file_key}")
+                return file_key
+            print(f"  ✗ 飞书文件上传失败: {resp_data}")
+            return None
+        except Exception as e:
+            print(f"  ✗ 飞书文件上传异常: {e}")
+            return None
+
+
+async def feishu_send_text(
+    text: str,
+    receive_id: str,
+    receive_id_type: str = "open_id",
+    token: str | None = None,
+    app_id: str | None = None,
+    app_secret: str | None = None,
+) -> bool:
+    """Send a text message via Feishu bot."""
+    app_id = app_id or os.environ.get("FEISHU_APP_ID")
+    app_secret = app_secret or os.environ.get("FEISHU_APP_SECRET")
+
+    if not all([app_id, app_secret, receive_id]):
+        print("  ⚠️  飞书未配置: 缺少 app_id/app_secret/receive_id")
+        return False
+
+    token = token or await _feishu_get_tenant_token(app_id, app_secret)
+    if not token:
+        return False
+
+    url = FEISHU_API.format(path="im/v1/messages")
+    async with httpx.AsyncClient() as client:
+        try:
+            payload = {
+                "receive_id": receive_id,
+                "msg_type": "text",
+                "content": json.dumps({"text": text}),
+            }
+            resp = await client.post(
+                f"{url}?receive_id_type={receive_id_type}",
+                json=payload,
+                headers={"Authorization": f"Bearer {token}"},
+                timeout=15,
+            )
+            data = resp.json()
+            if data.get("code") == 0:
+                print(f"  ✓ 飞书文本已发送")
+                return True
+            print(f"  ✗ 飞书文本发送失败: {data}")
+            return False
+        except Exception as e:
+            print(f"  ✗ 飞书 API 请求失败: {e}")
+            return False
+
+
+async def feishu_send_file(
+    file_key: str,
+    receive_id: str,
+    receive_id_type: str = "open_id",
+    token: str | None = None,
+    app_id: str | None = None,
+    app_secret: str | None = None,
+) -> bool:
+    """Send a file message via Feishu bot using an uploaded file_key."""
+    app_id = app_id or os.environ.get("FEISHU_APP_ID")
+    app_secret = app_secret or os.environ.get("FEISHU_APP_SECRET")
+
+    if not all([app_id, app_secret, receive_id]):
+        return False
+
+    token = token or await _feishu_get_tenant_token(app_id, app_secret)
+    if not token:
+        return False
+
+    url = FEISHU_API.format(path="im/v1/messages")
+    async with httpx.AsyncClient() as client:
+        try:
+            payload = {
+                "receive_id": receive_id,
+                "msg_type": "file",
+                "content": json.dumps({"file_key": file_key}),
+            }
+            resp = await client.post(
+                f"{url}?receive_id_type={receive_id_type}",
+                json=payload,
+                headers={"Authorization": f"Bearer {token}"},
+                timeout=15,
+            )
+            data = resp.json()
+            if data.get("code") == 0:
+                print(f"  ✓ 飞书文件消息已发送")
+                return True
+            print(f"  ✗ 飞书文件消息发送失败: {data}")
+            return False
+        except Exception as e:
+            print(f"  ✗ 飞书 API 请求失败: {e}")
+            return False
+
+
+async def feishu_send_podcast(
+    audio_path: str,
+    script: list[dict] | None = None,
+    repo_summaries: list[dict] | None = None,
+    date_str: str = "",
+    duration_sec: float = 0,
+    receive_id: str = "",
+    receive_id_type: str = "open_id",
+    app_id: str = "",
+    app_secret: str = "",
+) -> dict:
+    """Send podcast: text preview first, then MP3 file via Feishu.
+
+    All credentials accepted as parameters (from frontend form or env vars).
+    Falls back to env vars if parameters are empty.
+    """
+    if not date_str:
+        date_str = datetime.now().strftime("%Y年%m月%d日")
+
+    app_id = app_id or os.environ.get("FEISHU_APP_ID", "")
+    app_secret = app_secret or os.environ.get("FEISHU_APP_SECRET", "")
+    receive_id = receive_id or os.environ.get("FEISHU_RECEIVE_ID", "")
+    receive_id_type = receive_id_type or os.environ.get("FEISHU_RECEIVE_ID_TYPE", "open_id")
+
+    if not all([app_id, app_secret, receive_id]):
+        print("  ⚠️  飞书未配置: 缺少 app_id/app_secret/receive_id")
+        return {"text": False, "file": False}
+
+    token = await _feishu_get_tenant_token(app_id, app_secret)
+    if not token:
+        return {"text": False, "file": False}
+
+    # Build text preview
+    preview_lines = [f"🎙️ AI新闻播客 | {date_str}\n"]
+    if repo_summaries:
+        preview_lines.append("📦 本期仓库：")
+        for i, s in enumerate(repo_summaries[:6]):
+            name = s.get("name", "?")
+            stars = s.get("stars", 0)
+            summary = s.get("summary", "")
+            star_str = f"⭐{stars}" if stars else ""
+            preview_lines.append(f"  {i+1}. {name} — {star_str}")
+            if summary:
+                preview_lines.append(f"     {summary}")
+        preview_lines.append("")
+    if script:
+        minutes = int(duration_sec // 60) if duration_sec else 0
+        seconds = int(duration_sec % 60) if duration_sec else 0
+        duration_str = f" · 时长 {minutes}分{seconds}秒" if minutes else ""
+        preview_lines.append(f"📻 共 {len(script)} 轮对话{duration_str}")
+    preview_lines.append("点击下方文件收听 ↓")
+
+    results = {}
+    results["text"] = await feishu_send_text(
+        "\n".join(preview_lines), receive_id, receive_id_type, token, app_id, app_secret,
+    )
+
+    # Upload and send MP3
+    file_key = await feishu_upload_file(audio_path, "stream", token, app_id, app_secret)
+    if file_key:
+        results["file"] = await feishu_send_file(
+            file_key, receive_id, receive_id_type, token, app_id, app_secret,
+        )
+    else:
+        results["file"] = False
+
+    return results
+
+
 # ── Combined ──────────────────────────────────────────────
 
 async def notify_all(
