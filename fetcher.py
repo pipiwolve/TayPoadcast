@@ -32,13 +32,15 @@ class DailyDigest:
     def to_prompt_context(self) -> str:
         lines = []
         for i, item in enumerate(self.items, 1):
-            lines.append(f"{i}. [{item.source.upper()}] {item.title}")
-            if item.description:
-                lines.append(f"   简介: {item.description}")
-            if item.stars:
-                lines.append(f"   ⭐ {item.stars}")
+            lines.append(f"{i}. [{item.source}] {item.title}")
             if item.language:
                 lines.append(f"   语言: {item.language}")
+            if item.stars:
+                lines.append(f"   热度: ⭐ {item.stars}")
+            if item.description:
+                lines.append(f"   简介: {item.description}")
+            lines.append(f"   链接: {item.url}")
+        lines.append(f"\n共 {len(self.items)} 条新闻，请从中挑选最具讨论价值的项目深度展开。")
         return "\n".join(lines)
 
 
@@ -62,7 +64,7 @@ async def fetch_github_trending(client: httpx.AsyncClient) -> list[NewsItem]:
         r'<article[^>]*class="Box-row"[^>]*>(.*?)</article>', html, re.DOTALL
     )
 
-    for block in repo_blocks[:10]:
+    for block in repo_blocks[:20]:
         # Extract href path: /owner/repo → owner/repo
         href_match = re.search(r'h2[^>]*>\s*<a[^>]*href="([^"]+)"', block)
         desc_match = re.search(r'<p[^>]*class="[^"]*col-9[^"]*"[^>]*>(.*?)</p>', block, re.DOTALL)
@@ -94,7 +96,7 @@ async def fetch_github_trending(client: httpx.AsyncClient) -> list[NewsItem]:
     return items
 
 
-async def fetch_hn_top_stories(client: httpx.AsyncClient, limit: int = 10) -> list[NewsItem]:
+async def fetch_hn_top_stories(client: httpx.AsyncClient, limit: int = 15) -> list[NewsItem]:
     """Fetch top Hacker News stories, filtered for AI/tech relevance."""
     try:
         resp = await client.get(HN_TOP_URL, timeout=15)
@@ -111,10 +113,19 @@ async def fetch_hn_top_stories(client: httpx.AsyncClient, limit: int = 10) -> li
         "langchain", "cuda", "gpu", "nvidia", "pytorch", "tensorflow",
         "hugging face", "opensource", "open source", "github", "copilot",
         "cursor", "vibe cod", "notebooklm", "tts", "speech",
+        "rust", "python", "typescript", "javascript", "go", "zig",
+        "mcp", "tool", "sdk", "api", "framework", "benchmark",
+        "voice", "audio", "podcast", "video", "image", "generat",
+        "code", "dev", "program", "compiler", "database", "sql",
+        "browser", "chrome", "firefox", "webkit", "playwright", "puppet",
+        "linux", "macos", "windows", "ios", "android",
+        "security", "privacy", "encrypt", "crypto", "zero knowledge",
+        "quantum", "robot", "autonomous", "drone", "iot",
+        "startup", "yc", "fund", "acquisition",
     ]
 
     items = []
-    for sid in story_ids[:20]:
+    for sid in story_ids[:30]:
         try:
             r = await client.get(HN_ITEM_URL.format(sid), timeout=10)
             r.raise_for_status()
@@ -149,7 +160,7 @@ async def fetch_hn_top_stories(client: httpx.AsyncClient, limit: int = 10) -> li
     return items
 
 
-async def fetch_hn_ai_articles(client: httpx.AsyncClient, limit: int = 5) -> list[NewsItem]:
+async def fetch_hn_ai_articles(client: httpx.AsyncClient, limit: int = 8) -> list[NewsItem]:
     """Search HN Algolia for recent popular AI articles."""
     try:
         url = f"{HN_ALGOLIA_SEARCH}?query=AI+OR+LLM+OR+GPT+OR+model&tags=story&numericFilters=points>50&hitsPerPage={limit}"
@@ -194,7 +205,7 @@ async def fetch_all() -> DailyDigest:
             unique.append(item)
 
     unique.sort(key=lambda x: x.stars, reverse=True)
-    return DailyDigest(items=unique[:12])
+    return DailyDigest(items=unique[:20])
 
 
 if __name__ == "__main__":
