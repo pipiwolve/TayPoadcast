@@ -75,7 +75,84 @@ https://api.telegram.org/bot<TOKEN>/getUpdates
 - `WX_APPID`, `WX_SECRET`, `WX_OPENID`, `WX_TEMPLATE_ID`
 
 
-## 四、验证
+## 四、飞书（Feishu）通道（推荐，10分钟配置）
+
+飞书支持直接推送 MP3 播客文件和文字摘要，是除 Telegram 外唯一能发送完整音频的通道。
+
+### 1. 创建飞书应用
+
+1. 打开 https://open.feishu.cn ，登录后进入 **开发者后台**
+2. 点击 **创建企业自建应用**，填写应用名称（如"AI新闻播客"）
+3. 创建后在应用页面获取：
+   - **APP ID**: `cli_xxxxxxxxxxxxxxxx`
+   - **APP SECRET**: 点击"显示"获取
+
+### 2. 添加机器人能力
+
+1. 左侧菜单 → **应用能力** → **机器人** → 点击开启
+2. 填写机器人名称和描述，保存
+
+### 3. 配置权限
+
+1. 左侧菜单 → **权限管理**
+2. 搜索并开通以下权限：
+   - `contact:user.id:readonly` — 通过手机号或邮箱获取用户 ID
+3. 左侧菜单 → **版本管理与发布** → **创建版本** → 填写版本号（如 `1.0.0`）→ **发布**
+
+### 4. 获取 RECEIVE ID（Open ID）
+
+**方法一：通过 API 查询（推荐）**
+
+确保应用已发布后，用以下命令查询（替换手机号和凭证）：
+
+```bash
+# 1. 获取 token
+TOKEN=$(curl -s -X POST "https://open.feishu.cn/open-apis/auth/v3/tenant_access_token/internal" \
+  -H "Content-Type: application/json; charset=utf-8" \
+  -d '{"app_id":"你的APP_ID","app_secret":"你的APP_SECRET"}' | python3 -c "import sys,json;print(json.load(sys.stdin)['tenant_access_token'])")
+
+# 2. 查询 open_id
+curl -s -X POST "https://open.feishu.cn/open-apis/contact/v3/users/batch_get_id" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json; charset=utf-8" \
+  -d '{"mobiles":["你的手机号"]}'
+```
+
+返回示例：`"user_id":"ou_b4a3d022abb1e16007c7008e45751c0f"` — 这就是你的 RECEIVE ID。
+
+**方法二：通过 API 调试台**
+
+在开发者后台 → **API 调试台** → 搜索 `batch_get_id` → 选择 **查询用户 ID**，填入手机号直接运行。
+
+### 5. 测试推送
+
+```bash
+curl -s -X POST "https://open.feishu.cn/open-apis/im/v1/messages?receive_id_type=open_id" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json; charset=utf-8" \
+  -d '{"receive_id":"你的open_id","msg_type":"text","content":"{\"text\":\"测试推送\"}"}'
+```
+
+飞书中收到"测试推送"即表示配置成功。
+
+### 6. 添加环境变量
+
+在 `.env` 文件中填写：
+
+```
+FEISHU_APP_ID=cli_xxxxxxxxxxxxxxxx
+FEISHU_APP_SECRET=你的secret
+FEISHU_RECEIVE_ID=ou_xxxxxxxxxxxxxxxx
+FEISHU_RECEIVE_ID_TYPE=open_id
+```
+
+或者直接在 Web UI 推送区域点击 **推送到飞书**，在展开的表单中填入以上三个值即可，无需修改 .env。
+
+### 7. 添加到 GitHub Secrets
+- `FEISHU_APP_ID`, `FEISHU_APP_SECRET`, `FEISHU_RECEIVE_ID`
+
+
+## 五、验证
 
 ### 手动触发测试：
 GitHub 仓库 → Actions → Daily AI News Podcast → Run workflow
@@ -94,7 +171,7 @@ python main.py --auto
 ```
 
 
-## 五、定时规则
+## 六、定时规则
 
 默认 `cron: '0 2 * * *'` = 北京时间 10:00。
 
@@ -107,7 +184,7 @@ python main.py --auto
 - cron: '0 13 * * *'
 ```
 
-## 六、多领域模块配置
+## 七、多领域模块配置
 
 ### 启用新领域
 
