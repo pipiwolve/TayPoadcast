@@ -2,11 +2,9 @@ name: Daily AI News Podcast
 
 on:
   schedule:
-    # 北京时间 01:30 = UTC 17:30 (前一天)
-    - cron: '30 17 * * *'
+    # 北京时间 10:00 = UTC 2:00
+    - cron: '0 2 * * *'
   workflow_dispatch:
-  push:
-    branches: [main]
 
 env:
   PYTHON_VERSION: '3.13'
