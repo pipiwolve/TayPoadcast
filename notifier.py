@@ -534,12 +534,23 @@ async def notify_all(
             url="",  # No GitHub link — self-contained text briefing
         )
 
+    # Feishu
+    if os.environ.get("FEISHU_APP_ID"):
+        results["feishu"] = await feishu_send_podcast(
+            audio_path=audio_path,
+            script=script,
+            repo_summaries=repo_summaries,
+            date_str=date_str,
+            duration_sec=duration_sec,
+        )
+
     return results
 
 
 async def notify_multi_domain(
     domain_results: list[dict],
     date_str: str = "",
+    feishu_creds: dict | None = None,
 ) -> dict:
     """Send aggregated multi-domain notification.
 
@@ -600,6 +611,34 @@ async def notify_multi_domain(
             title=f"AI新闻早报 | {date_str}",
             summary=briefing,
         )
+
+    # Feishu: send each domain's podcast separately
+    feishu_ok = False
+    have_feishu = bool(
+        (feishu_creds and feishu_creds.get("app_id") and feishu_creds.get("app_secret") and feishu_creds.get("receive_id"))
+        or (os.environ.get("FEISHU_APP_ID") and os.environ.get("FEISHU_APP_SECRET") and os.environ.get("FEISHU_RECEIVE_ID"))
+    )
+    if have_feishu:
+        for dr in domain_results:
+            audio_path = dr.get("audio_path", "")
+            if not audio_path or not os.path.exists(audio_path):
+                print(f"  ⚠️  飞书跳过 {dr['name']}: audio_path 不存在 ({audio_path})")
+                continue
+            kwargs = dict(
+                audio_path=audio_path,
+                script=dr.get("script"),
+                repo_summaries=dr.get("repo_summaries"),
+                date_str=f"{date_str} [{dr['name']}]",
+            )
+            if feishu_creds:
+                kwargs["app_id"] = feishu_creds.get("app_id", "")
+                kwargs["app_secret"] = feishu_creds.get("app_secret", "")
+                kwargs["receive_id"] = feishu_creds.get("receive_id", "")
+                kwargs["receive_id_type"] = feishu_creds.get("receive_id_type", "open_id")
+            res = await feishu_send_podcast(**kwargs)
+            if res.get("text") or res.get("file"):
+                feishu_ok = True
+        results["feishu"] = feishu_ok
 
     return results
 
