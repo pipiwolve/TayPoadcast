@@ -28,8 +28,16 @@ class AcademicFetcher(BaseFetcher):
             for r in results:
                 all_items.extend(r)
 
-        all_items.sort(key=lambda x: x.stars, reverse=True)
-        return DailyDigest(domain=self.domain, items=all_items[:20])
+        seen = set()
+        unique = []
+        for item in all_items:
+            key = item.title.lower()[:80]
+            if key not in seen:
+                seen.add(key)
+                unique.append(item)
+
+        unique.sort(key=lambda x: x.stars, reverse=True)
+        return DailyDigest(domain=self.domain, items=unique[:20])
 
     async def _fetch_category(
         self, client: httpx.AsyncClient, category: str, label: str
@@ -58,7 +66,7 @@ class AcademicFetcher(BaseFetcher):
             title_match = _xml_text(entry, "title")
             summary_match = _xml_text(entry, "summary")
             link = ""
-            link_match = re.search(r'<id>(http://arxiv\.org/abs/[^<]+)</id>', entry)
+            link_match = re.search(r'<id>(https?://arxiv\.org/abs/[^<]+)</id>', entry)
             if link_match:
                 link = link_match.group(1)
 

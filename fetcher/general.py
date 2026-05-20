@@ -27,8 +27,16 @@ class GeneralFetcher(BaseFetcher):
         for r in results:
             all_items.extend(r)
 
-        all_items.sort(key=lambda x: x.stars, reverse=True)
-        return DailyDigest(domain=self.domain, items=all_items[:20])
+        seen = set()
+        unique = []
+        for item in all_items:
+            key = item.title.lower()[:80]
+            if key not in seen:
+                seen.add(key)
+                unique.append(item)
+
+        unique.sort(key=lambda x: x.stars, reverse=True)
+        return DailyDigest(domain=self.domain, items=unique[:20])
 
     async def _fetch_rss(
         self, client: httpx.AsyncClient, url: str, label: str
@@ -71,7 +79,13 @@ class GeneralFetcher(BaseFetcher):
 
 
 def _rss_text(xml: str, tag: str) -> str:
+    # Try standard closing tag
     match = re.search(rf"<{tag}[^>]*>(.*?)</{tag}>", xml, re.DOTALL)
     if match:
         return re.sub(r"<[^>]+>", "", match.group(1)).strip()
+    # Try self-closing tag with href attribute (Atom-style links)
+    if tag == "link":
+        match = re.search(rf'<{tag}[^>]*href="([^"]+)"', xml)
+        if match:
+            return match.group(1)
     return ""
