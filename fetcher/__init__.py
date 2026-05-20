@@ -2,14 +2,26 @@
 
 import httpx
 
+from fetcher.academic import AcademicFetcher
 from fetcher.base import BaseFetcher, DailyDigest, NewsItem
 from fetcher.finance import FinanceFetcher
+from fetcher.general import GeneralFetcher
 from fetcher.tech import TechFetcher
 
 __all__ = [
-    "BaseFetcher", "DailyDigest", "NewsItem", "FinanceFetcher", "TechFetcher",
+    "AcademicFetcher", "BaseFetcher", "DailyDigest", "NewsItem",
+    "FinanceFetcher", "GeneralFetcher", "TechFetcher",
+    "FETCHER_REGISTRY",
     "fetch_all", "fetch_github_trending", "fetch_hn_top_stories", "fetch_hn_ai_articles",
 ]
+
+# Registry: domain -> fetcher class
+FETCHER_REGISTRY = {
+    "tech": TechFetcher,
+    "finance": FinanceFetcher,
+    "academic": AcademicFetcher,
+    "general": GeneralFetcher,
+}
 
 # ---------------------------------------------------------------------------
 # Backward-compatible re-exports (old code does "from fetcher import fetch_all")
