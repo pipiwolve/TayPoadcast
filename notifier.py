@@ -286,6 +286,69 @@ async def notify_all(
     return results
 
 
+async def notify_multi_domain(
+    domain_results: list[dict],
+    date_str: str = "",
+) -> dict:
+    """Send aggregated multi-domain notification.
+
+    Args:
+        domain_results: [
+            {
+                "domain": "tech",
+                "name": "技术资讯",
+                "audio_path": "output/20260520/tech/podcast.mp3",
+                "script": [...],
+                "repo_summaries": [...],
+            },
+            ...
+        ]
+    """
+    if not date_str:
+        date_str = datetime.now().strftime("%Y年%m月%d日")
+
+    results = {}
+
+    # Telegram: send each domain's podcast separately
+    for dr in domain_results:
+        domain_tag = f"[{dr['name']}]"
+        audio_path = dr.get("audio_path", "")
+        if not audio_path or not os.path.exists(audio_path):
+            continue
+
+        await telegram_send_podcast(
+            audio_path=audio_path,
+            script=dr.get("script"),
+            repo_summaries=dr.get("repo_summaries"),
+            date_str=f"{date_str} {domain_tag}",
+        )
+
+    results["telegram"] = True
+
+    # WeChat: send one aggregated text briefing for all domains
+    if os.environ.get("WX_APPID"):
+        lines = []
+        for dr in domain_results:
+            name = dr.get("name", "?")
+            items = dr.get("repo_summaries", [])
+            if items:
+                lines.append(f"【{name}】")
+                for j, s in enumerate(items[:3]):
+                    repo_name = s.get("name", "?").split("/")[-1]
+                    stars = s.get("stars", 0)
+                    summary = s.get("summary", "")
+                    lines.append(f"  {repo_name} ⭐{stars} {summary[:40]}")
+                lines.append("")
+
+        briefing = "\n".join(lines)[:200] if lines else "今日多领域资讯速递"
+        results["wechat"] = await wechat_send_template(
+            title=f"AI新闻早报 | {date_str}",
+            summary=briefing,
+        )
+
+    return results
+
+
 if __name__ == "__main__":
     print("Notification module loaded.")
     print("环境变量检查:")
