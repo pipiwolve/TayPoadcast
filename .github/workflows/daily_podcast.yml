@@ -93,6 +93,7 @@ jobs:
       - name: 生成摘要
         if: always()
         run: |
+          DATE_STR=$(TZ='Asia/Shanghai' date +%Y%m%d)
           {
             echo "## 📻 今日AI新闻播客"
             echo ""
@@ -104,16 +105,17 @@ jobs:
             echo "| Telegram | ${{ env.TELEGRAM_SET == 'true' && '✅' || '⚠️ 未配置' }} |"
             echo "| WeChat | ${{ env.WECHAT_SET == 'true' && '✅' || '⚠️ 未配置' }} |"
             echo ""
-            if [ -f "output/$(TZ='Asia/Shanghai' date +%Y%m%d)/script.json" ]; then
-              TURNS=$(python -c "import json; d=json.load(open('output/$(TZ='Asia/Shanghai' date +%Y%m%d)/script.json')); print(len(d))")
-              echo "✅ 播客已生成，${TURNS} 轮对话"
-              echo ""
-              echo "🔊 [在线收听](https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/$(TZ='Asia/Shanghai' date +%Y%m%d)/podcast_$(TZ='Asia/Shanghai' date +%Y%m%d).mp3)"
-            else
-              if [ "${{ env.LLM_KEY_SET }}" != "true" ]; then
-                echo "❌ 缺少 LLM API Key，请在 GitHub Secrets 中设置 DEEPSEEK_API_KEY"
-              else
-                echo "⚠️ 播客生成失败，请查看上方日志"
+            for domain_dir in output/${DATE_STR}/*/; do
+              DOMAIN=$(basename "$domain_dir")
+              SCRIPT_FILE="${domain_dir}script.json"
+              if [ -f "$SCRIPT_FILE" ]; then
+                TURNS=$(python -c "import json; print(len(json.load(open('$SCRIPT_FILE'))))")
+                echo "✅ **${DOMAIN}** — ${TURNS} 轮对话"
+                echo "🔊 [在线收听](https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/${DATE_STR}/${DOMAIN}/podcast_${DATE_STR}.mp3)"
+                echo ""
               fi
+            done
+            if [ ! -d "output/${DATE_STR}" ] || [ -z "$(ls -A output/${DATE_STR}/ 2>/dev/null)" ]; then
+              echo "⚠️ 播客生成失败，请查看上方日志"
             fi
           } >> $GITHUB_STEP_SUMMARY
