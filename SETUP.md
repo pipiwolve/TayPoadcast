@@ -151,6 +151,38 @@ FEISHU_RECEIVE_ID_TYPE=open_id
 ### 7. 添加到 GitHub Secrets
 - `FEISHU_APP_ID`, `FEISHU_APP_SECRET`, `FEISHU_RECEIVE_ID`
 
+### 8. 踩坑记录
+
+以下是实际配置过程中遇到的全部问题和解决方案：
+
+**坑1：权限开通后不生效 —— 必须发布新版本**
+
+在"权限管理"中开通权限后，API 依然返回 `99991672 Access denied`。这是因为飞书的权限变更需要**发布新版本**才会生效：
+
+1. 左侧菜单 → **版本管理与发布** → **创建版本**
+2. 填写版本号（如 `1.0.0`）→ **发布**
+3. 等待 1-2 分钟，新版本生效后再调用 API
+
+每次增删权限后都需要重新发布。
+
+**坑2：缺少 `im:resource:upload` 权限 —— 文本能发但文件发不了**
+
+飞书机器人发文本消息不需要额外权限，但上传文件（MP3）需要 `im:resource:upload` 和 `im:resource`。如果只开了通讯录权限，文本推送正常但文件上传会静默失败，排查时容易忽略。务必在**权限管理**中搜索并开通：
+
+- `im:resource:upload` — 上传文件到 IM
+- `im:resource` — 获取 IM 资源
+- `contact:user.id:readonly` — 通过手机号/邮箱获取用户 ID
+
+**坑3：API 请求 Content-Type 需要显式指定 charset**
+
+部分飞书 API 对 `Content-Type` 头敏感，建议统一使用：
+
+```
+Content-Type: application/json; charset=utf-8
+```
+
+缺少 `charset=utf-8` 可能导致 `batch_get_id` 等接口返回空响应或解析失败。
+
 
 ## 五、验证
 
