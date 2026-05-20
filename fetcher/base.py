@@ -1,5 +1,6 @@
 """Base classes for domain-specific fetchers."""
 
+from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 
 
@@ -36,10 +37,11 @@ class DailyDigest:
         return "\n".join(lines)
 
 
-class BaseFetcher:
+class BaseFetcher(ABC):
     """Abstract base for domain-specific news fetchers."""
 
     domain: str = "general"
 
+    @abstractmethod
     async def fetch(self) -> DailyDigest:
-        raise NotImplementedError
+        ...
