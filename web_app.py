@@ -672,62 +672,62 @@ body::before{
 }
 
 /* ── Script viewer (文稿 tab) ── */
-.script-viewer{font-size:15px;line-height:2;padding:8px 0}
-.script-turn{display:flex;gap:12px;margin-bottom:14px;align-items:flex-start}
+.script-viewer{font-size:14px;line-height:2;padding:8px 0;position:relative;z-index:1}
+.script-turn{display:flex;gap:10px;margin-bottom:16px;align-items:flex-start}
 .script-turn .speaker-badge{
-  flex-shrink:0;padding:2px 10px;border-radius:var(--radius-sm);
-  font-family:var(--font-display);font-size:13px;font-weight:600;
-  white-space:nowrap;margin-top:2px;
+  flex-shrink:0;padding:1px 10px;border-radius:var(--radius-sm);
+  font-family:var(--font-display);font-size:12px;font-weight:600;
+  white-space:nowrap;margin-top:3px;border:1px solid transparent;
 }
-.script-turn .speaker-badge.xiaoxiao{background:rgba(201,123,139,.15);color:var(--accent-rose)}
-.script-turn .speaker-badge.yunyang{background:rgba(123,156,201,.15);color:var(--accent-slate)}
+.script-turn .speaker-badge.xiaoxiao{border-color:#c9a0a8;color:var(--accent-rose);background:var(--accent-rose-bg)}
+.script-turn .speaker-badge.yunyang{border-color:#8aacc9;color:var(--accent-slate);background:var(--accent-slate-bg)}
 .script-turn .turn-text{flex:1;color:var(--text-primary)}
 
 /* ── Summaries (速览 tab) ── */
-.summary-list{display:flex;flex-direction:column;gap:12px}
+.summary-list{display:flex;flex-direction:column;gap:10px;position:relative;z-index:1}
 .summary-item{
   background:var(--bg-card);border:1px solid var(--border);
   border-radius:var(--radius);padding:14px 16px;
 }
-.summary-item .repo-header{display:flex;align-items:center;gap:10px;margin-bottom:6px}
-.summary-item .repo-name{font-family:var(--font-display);font-size:15px;font-weight:600;color:var(--accent)}
-.summary-item .repo-meta{font-size:12px;color:var(--text-muted);margin-left:auto;white-space:nowrap}
-.summary-item .repo-desc{font-size:14px;color:var(--text-secondary);line-height:1.7}
+.summary-item .repo-header{display:flex;align-items:center;gap:10px;margin-bottom:4px}
+.summary-item .repo-name{font-family:var(--font-display);font-size:14px;font-weight:600;color:var(--accent)}
+.summary-item .repo-meta{font-size:11px;color:var(--text-muted);margin-left:auto;white-space:nowrap}
+.summary-item .repo-desc{font-size:13px;color:var(--text-secondary);line-height:1.8}
 
 /* ── Push section ── */
-.push-section{display:none;margin-top:28px;padding-top:24px;border-top:1px solid var(--border)}
+.push-section{display:none;margin-top:28px;padding-top:20px;border-top:1px dashed var(--border);position:relative;z-index:1}
 .push-section.visible{display:block;animation:fade-up .5s ease}
 .push-section .push-title{
-  font-family:var(--font-display);font-size:14px;color:var(--text-muted);
-  margin-bottom:14px;letter-spacing:.04em;text-align:center;
+  font-family:var(--font-display);font-size:12px;color:var(--text-muted);
+  margin-bottom:14px;letter-spacing:.08em;text-align:center;
 }
-.push-buttons{display:flex;gap:10px}
+.push-buttons{display:flex;gap:8px}
 .push-btn{
-  flex:1;padding:14px;border-radius:var(--radius);border:1.5px solid var(--border);
+  flex:1;padding:12px;border-radius:var(--radius);border:1px solid var(--border);
   background:var(--bg-card);color:var(--text-secondary);
-  font-family:var(--font-display);font-size:14px;font-weight:600;
-  cursor:pointer;transition:all .25s var(--ease-out);
-  display:flex;align-items:center;justify-content:center;gap:8px;
+  font-family:var(--font-display);font-size:13px;font-weight:600;
+  cursor:pointer;transition:all .2s var(--ease-out);
+  display:flex;align-items:center;justify-content:center;gap:6px;
 }
-.push-btn:hover:not(:disabled){border-color:var(--border-active);color:var(--text-primary)}
+.push-btn:hover:not(:disabled){border-color:var(--accent);color:var(--text-primary)}
 .push-btn:disabled{opacity:.4;cursor:not-allowed}
-.push-btn.sent{border-color:var(--success);color:var(--success)}
+.push-btn.sent{border-color:var(--accent);color:var(--accent)}
 .push-btn.failed{border-color:var(--error);color:var(--error)}
-.push-btn .push-icon{font-size:18px}
-.push-btn .push-label{font-size:13px}
+.push-btn .push-icon{font-size:16px}
+.push-btn .push-label{font-size:12px}
 
-.feishu-config{display:none;margin-top:12px;padding:14px 16px;background:rgba(200,148,106,.04);border-radius:8px;border:1px solid var(--border)}
+.feishu-config{display:none;margin-top:12px;padding:14px 16px;background:rgba(107,138,122,.04);border-radius:var(--radius);border:1px solid var(--border)}
 .feishu-config.visible{display:block}
-.feishu-config .config-title{font-size:13px;color:var(--text-secondary);margin-bottom:10px}
-.feishu-config label{display:block;font-size:12px;color:var(--text-muted);margin-bottom:4px;margin-top:8px}
+.feishu-config .config-title{font-size:12px;color:var(--text-secondary);margin-bottom:10px}
+.feishu-config label{display:block;font-size:11px;color:var(--text-muted);margin-bottom:3px;margin-top:8px}
 .feishu-config label:first-of-type{margin-top:0}
-.feishu-config input{width:100%;padding:7px 10px;font-size:12px;background:var(--bg-secondary);border:1px solid var(--border);border-radius:6px;color:var(--text-primary);box-sizing:border-box;font-family:var(--font-mono)}
+.feishu-config input{width:100%;padding:7px 10px;font-size:12px;background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius-sm);color:var(--text-primary);box-sizing:border-box;font-family:var(--font-body)}
 .feishu-config input:focus{outline:none;border-color:var(--accent)}
 
 /* ── Spinner ── */
 .spinner{
   display:inline-block;width:12px;height:12px;
-  border:2px solid rgba(200,148,106,.3);border-top-color:var(--accent);
+  border:2px solid rgba(107,138,122,.25);border-top-color:var(--accent);
   border-radius:50%;animation:spin .7s linear infinite;
   margin-right:6px;vertical-align:middle;
 }
@@ -735,21 +735,14 @@ body::before{
 
 /* ── Summary bar ── */
 .summary-bar{
-  background:var(--bg-card);border:1px solid var(--border);
-  border-radius:var(--radius);padding:14px 18px;
-  text-align:center;font-size:14px;color:var(--text-secondary);
-  display:none;animation:fade-up .5s ease;margin-bottom:20px;
+  background:var(--bg-card);border-top:1px dashed var(--border);border-bottom:1px dashed var(--border);
+  padding:12px 18px;text-align:center;font-size:13px;color:var(--text-secondary);
+  display:none;animation:fade-up .5s ease;margin-bottom:16px;position:relative;z-index:1;
 }
-.summary-bar .highlight{color:var(--accent);font-family:var(--font-display)}
+.summary-bar .highlight{color:var(--accent);font-family:var(--font-display);font-weight:600}
 
-/* ── Audio player ── */
-.audio-player{
-  display:none;width:100%;margin-top:14px;
-  border-radius:var(--radius);background:var(--bg-card);
-  border:1px solid var(--border);outline:none;
-  position:relative;z-index:1;
-}
-.audio-player.visible{display:block}
+/* ── Empty state ── */
+.empty-state{text-align:center;color:var(--text-muted);font-size:14px;padding:40px 20px}
 
 /* ── Animations ── */
 @keyframes fade-up{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:translateY(0)}}
@@ -759,12 +752,26 @@ body::before{
 .result-card:nth-child(3){animation-delay:.1s}
 .result-card:nth-child(4){animation-delay:.15s}
 
+/* ── Seal ── */
+.seal{
+  text-align:center;margin-top:24px;position:relative;z-index:1;
+}
+.seal-inner{
+  display:inline-flex;align-items:center;justify-content:center;
+  width:36px;height:36px;border-radius:50%;
+  border:1.5px solid var(--border);
+  font-size:10px;color:var(--text-muted);
+  transform:rotate(-12deg);
+  line-height:1.3;text-align:center;
+  font-family:var(--font-display);
+}
+
 /* ── Responsive ── */
 @media(max-width:480px){
-  .header{padding:40px 20px 32px}
-  .header h1{font-size:28px}
-  .domain-card{padding:14px}
-  .domain-card .desc{font-size:12px}
+  .header{padding:36px 20px 28px}
+  .header h1{font-size:26px}
+  .domain-card{padding:12px}
+  .domain-card .desc{font-size:11px}
   .push-buttons{flex-direction:column}
 }
 </style>
@@ -831,6 +838,10 @@ body::before{
       <label>RECEIVE ID</label>
       <input type="text" id="feishuReceiveId" placeholder="ou_xxxxxxxx 或 chat_id" autocomplete="off">
     </div>
+  </div>
+
+  <div class="seal">
+    <div class="seal-inner">手<br>帳</div>
   </div>
 
   <audio class="audio-player" id="audioPlayer" controls onended="onAudioEnded()"></audio>
