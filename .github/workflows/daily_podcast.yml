@@ -77,7 +77,7 @@ jobs:
 
       - name: 运行每日播客管线
         id: podcast
-        run: python main.py --auto --no-notify
+        run: python main.py --auto
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
