@@ -768,12 +768,11 @@ body::before{
   padding:0;
 }
 
-/* ── Mini player bar ── */
+/* ── Mini player bar (inside audio tab) ── */
 .mini-player{
   display:none;padding:10px 14px;border:1px solid var(--border);
   background:var(--ivory);border-radius:var(--radius);
-  align-items:center;gap:10px;margin-top:auto;
-  position:sticky;bottom:16px;
+  align-items:center;gap:10px;margin-top:16px;
 }
 .mini-player.visible{display:flex}
 .mini-player .mini-wave{
@@ -822,7 +821,6 @@ body::before{
   .domain-card{padding:10px 12px}
   .domain-card .desc{font-size:10px}
   .push-buttons{flex-direction:column}
-  .mini-player{bottom:0}
 }
 </style>
 </head>
@@ -890,6 +888,12 @@ body::before{
       <!-- Tab: Audio -->
       <div class="tab-panel active" id="panel-audio">
         <div class="results" id="results"></div>
+        <div class="mini-player" id="miniPlayer">
+          <div class="mini-wave" id="miniWave"></div>
+          <button class="mini-play-btn" id="miniPlayBtn" onclick="toggleMiniPlay()">▶</button>
+          <span class="mini-time" id="miniTime">0:00 / 0:00</span>
+          <button class="mini-speed" id="miniSpeed" onclick="cycleMiniSpeed()">1x</button>
+        </div>
       </div>
 
       <!-- Tab: Script -->
@@ -905,14 +909,6 @@ body::before{
           <div class="empty-state">生成播客后将在此显示内容速览</div>
         </div>
       </div>
-    </div>
-
-    <!-- Mini player bar -->
-    <div class="mini-player" id="miniPlayer">
-      <div class="mini-wave" id="miniWave"></div>
-      <button class="mini-play-btn" id="miniPlayBtn" onclick="toggleMiniPlay()">▶</button>
-      <span class="mini-time" id="miniTime">0:00 / 0:00</span>
-      <button class="mini-speed" id="miniSpeed" onclick="cycleMiniSpeed()">1x</button>
     </div>
   </div><!-- /right-panel -->
 
@@ -979,6 +975,11 @@ function toggleDomain(key, card) {
 function switchTab(tabName) {
   document.querySelectorAll('.tab-btn').forEach(b => b.classList.toggle('active', b.dataset.tab === tabName));
   document.querySelectorAll('.tab-panel').forEach(p => p.classList.toggle('active', p.id === 'panel-' + tabName));
+  const mp = document.getElementById('miniPlayer');
+  if (mp) {
+    if (tabName === 'audio' && document.querySelector('.play-btn.visible')) mp.classList.add('visible');
+    else mp.classList.remove('visible');
+  }
 }
 
 function startGeneration() {
