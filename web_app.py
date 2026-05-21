@@ -456,6 +456,8 @@ _HTML = """<!DOCTYPE html>
   --bg-card: #faf5eb;
   --bg-card-hover: #f7f1e6;
   --bg-elevated: #faf5eb;
+  --bg-deep: #e8dcc8;
+  --bg-secondary: #f0eadb;
   --border: #d4c5b0;
   --border-light: #e0d7c5;
   --border-active: #6b8a7a;
@@ -476,6 +478,7 @@ _HTML = """<!DOCTYPE html>
   --radius-lg: 8px;
   --font-display: "Noto Serif SC", "Songti SC", "SimSun", serif;
   --font-body: "LXGW WenKai", "KaiTi", "STKaiti", serif;
+  --font-mono: "SF Mono", "Cascadia Code", "Consolas", monospace;
   --ease-out: cubic-bezier(.34,1.56,.64,1);
   --ease-spring: cubic-bezier(.22,.61,.36,1);
 }
