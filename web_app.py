@@ -451,40 +451,52 @@ _HTML = """<!DOCTYPE html>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@400;600;700&family=LXGW+WenKai:wght@400;700&display=swap" rel="stylesheet">
 <style>
 :root {
-  --bg-deep: #1a1412;
-  --bg-card: #241d1a;
-  --bg-card-hover: #2d2520;
-  --bg-elevated: #2a221d;
-  --border: #3a3028;
-  --border-active: #c8946a;
-  --text-primary: #ead9c8;
-  --text-secondary: #8a7d70;
-  --text-muted: #5c5248;
-  --accent: #c8946a;
-  --accent-glow: rgba(200,148,106,.18);
-  --accent-rose: #c97b8b;
-  --accent-slate: #7b9cc9;
-  --success: #7a9f7e;
+  --bg-page-top: #f5efe0;
+  --bg-page-bottom: #ede4d3;
+  --bg-card: #faf5eb;
+  --bg-card-hover: #f7f1e6;
+  --bg-elevated: #faf5eb;
+  --border: #d4c5b0;
+  --border-light: #e0d7c5;
+  --border-active: #6b8a7a;
+  --text-primary: #3d3226;
+  --text-secondary: #8b7355;
+  --text-muted: #b8a48e;
+  --accent: #6b8a7a;
+  --accent-dark: #5a7a6a;
+  --accent-glow: rgba(107,138,122,.25);
+  --accent-rose: #9b6a72;
+  --accent-rose-bg: rgba(155,106,114,.08);
+  --accent-slate: #5a7a8a;
+  --accent-slate-bg: rgba(90,122,138,.08);
+  --success: #6b8a7a;
   --error: #c97b6b;
-  --telegram: #4a9bd9;
-  --wechat: #5cb85c;
-  --radius-sm: 6px;
-  --radius: 10px;
-  --radius-lg: 16px;
+  --radius-sm: 4px;
+  --radius: 6px;
+  --radius-lg: 8px;
   --font-display: "Noto Serif SC", "Songti SC", "SimSun", serif;
   --font-body: "LXGW WenKai", "KaiTi", "STKaiti", serif;
   --ease-out: cubic-bezier(.34,1.56,.64,1);
   --ease-spring: cubic-bezier(.22,.61,.36,1);
 }
 *{margin:0;padding:0;box-sizing:border-box}
-html{background:var(--bg-deep)}
+html{background:var(--bg-page-top)}
 body{
   font-family:var(--font-body);
-  background:radial-gradient(ellipse at 50% 0%,#2a1f18 0%,var(--bg-deep) 70%);
+  background:linear-gradient(180deg,var(--bg-page-top) 0%,var(--bg-page-bottom) 100%);
   color:var(--text-primary);
   min-height:100vh;
-  line-height:1.6;
+  line-height:1.8;
   -webkit-font-smoothing:antialiased;
+  position:relative;
+}
+/* Paper texture overlay */
+body::before{
+  content:"";
+  position:fixed;inset:0;pointer-events:none;z-index:0;
+  opacity:.025;
+  background:radial-gradient(circle at 20% 30%,#8b7355 1px,transparent 1px);
+  background-size:4px 4px;
 }
 
 /* ── Header ── */
