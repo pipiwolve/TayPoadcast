@@ -592,74 +592,84 @@ body::before{
 }
 
 /* ── Generate button ── */
-.generate-wrap{margin-bottom:36px}
+.generate-wrap{margin-bottom:32px;position:relative;z-index:1}
 .generate-btn{
-  width:100%;padding:18px;border:none;border-radius:var(--radius);
-  background:linear-gradient(135deg,#b8805a,#9b6d48);
-  color:#fff;font-family:var(--font-display);font-size:17px;font-weight:600;
+  width:100%;padding:16px;border:none;border-radius:var(--radius);
+  background:linear-gradient(135deg,var(--accent),var(--accent-dark));
+  color:#faf5eb;font-family:var(--font-display);font-size:16px;font-weight:600;
   letter-spacing:.08em;cursor:pointer;
-  transition:all .35s var(--ease-spring);
+  transition:all .3s var(--ease-out);
   position:relative;overflow:hidden;
+  box-shadow:0 2px 12px var(--accent-glow);
 }
 .generate-btn::before{
   content:"";position:absolute;inset:0;
-  background:linear-gradient(135deg,rgba(255,255,255,.08),transparent 60%);
+  background:linear-gradient(135deg,rgba(255,255,255,.06),transparent 60%);
   pointer-events:none;
 }
-.generate-btn:hover:not(:disabled){transform:translateY(-2px);box-shadow:0 12px 36px rgba(200,148,106,.3)}
+.generate-btn:hover:not(:disabled){transform:translateY(-2px);box-shadow:0 6px 24px var(--accent-glow)}
 .generate-btn:active:not(:disabled){transform:translateY(0)}
-.generate-btn:disabled{opacity:.55;cursor:not-allowed;filter:saturate(.5)}
+.generate-btn:disabled{opacity:.5;cursor:not-allowed;filter:grayscale(.3)}
 
 /* ── Tab navigation ── */
-.tab-nav{display:none;margin-bottom:24px;border-bottom:2px solid var(--border)}
+.tab-nav{display:none;margin-bottom:20px;border-bottom:1px solid var(--border);position:relative;z-index:1}
 .tab-nav.visible{display:flex;gap:0}
 .tab-btn{
-  flex:1;padding:12px 8px;background:none;border:none;
+  flex:1;padding:10px 8px;background:none;border:none;
   color:var(--text-muted);font-family:var(--font-display);
-  font-size:14px;font-weight:600;cursor:pointer;
-  position:relative;transition:color .25s ease;
-  letter-spacing:.04em;
+  font-size:13px;font-weight:600;cursor:pointer;
+  position:relative;transition:color .2s ease;
+  letter-spacing:.06em;
 }
 .tab-btn:hover{color:var(--text-secondary)}
 .tab-btn.active{color:var(--accent)}
 .tab-btn.active::after{
-  content:"";position:absolute;bottom:-2px;left:20%;right:20%;height:2px;
+  content:"";position:absolute;bottom:-1px;left:25%;right:25%;height:2px;
   background:var(--accent);border-radius:1px;
 }
 
 /* ── Tab panels ── */
-.tab-panel{display:none;animation:fade-up .4s ease}
+.tab-panel{display:none;animation:fade-up .4s ease;position:relative;z-index:1}
 .tab-panel.active{display:block}
 
 /* ── Results cards (audio tab) ── */
-.results{display:flex;flex-direction:column;gap:10px;margin-bottom:20px}
+.results{display:flex;flex-direction:column;gap:8px;margin-bottom:16px;position:relative;z-index:1}
 .result-card{
-  display:flex;align-items:center;gap:14px;
+  display:flex;align-items:center;gap:12px;
   padding:14px 16px;background:var(--bg-card);
-  border-radius:var(--radius);border:1.5px solid var(--border);
-  transition:all .4s ease;
+  border-radius:var(--radius);border:1px solid var(--border);
+  border-left:3px solid transparent;
+  transition:all .3s ease;
 }
-.result-card.status-generating{border-left:3px solid #c8946a;animation:pulse-border 2s ease-in-out infinite}
-.result-card.status-done{border-left:3px solid var(--success);background:linear-gradient(135deg,rgba(122,159,126,.06),transparent)}
-.result-card.status-error{border-left:3px solid var(--error);background:linear-gradient(135deg,rgba(201,123,107,.06),transparent)}
-@keyframes pulse-border{0%,100%{border-left-color:#c8946a}50%{border-left-color:#e0b88a}}
-.result-emoji{font-size:24px;flex-shrink:0}
+.result-card.status-pending{border-left-color:var(--border)}
+.result-card.status-generating{border-left-color:var(--accent);animation:pulse-border 2s ease-in-out infinite}
+.result-card.status-done{border-left-color:var(--accent);background:linear-gradient(135deg,rgba(107,138,122,.05),transparent)}
+.result-card.status-error{border-left-color:var(--error);background:linear-gradient(135deg,rgba(201,123,107,.05),transparent)}
+@keyframes pulse-border{0%,100%{border-left-color:var(--accent)}50%{border-left-color:#8ab8a0}}
+.result-emoji{font-size:22px;flex-shrink:0}
 .result-info{flex:1;min-width:0}
-.result-name{font-family:var(--font-display);font-size:15px;font-weight:600;margin-bottom:2px}
-.result-meta{font-size:13px;color:var(--text-secondary)}
+.result-name{font-family:var(--font-display);font-size:14px;font-weight:600;margin-bottom:2px}
+.result-meta{font-size:12px;color:var(--text-secondary)}
 
 /* ── Play button ── */
 .play-btn{
-  flex-shrink:0;width:42px;height:42px;
-  border-radius:50%;border:2px solid var(--border);
+  flex-shrink:0;width:36px;height:36px;
+  border-radius:50%;border:1.5px solid var(--border);
   background:transparent;color:var(--text-secondary);
-  font-size:16px;cursor:pointer;display:none;
+  font-size:14px;cursor:pointer;display:none;
   align-items:center;justify-content:center;
   transition:all .25s var(--ease-out);
 }
 .play-btn.visible{display:flex}
-.play-btn:hover{border-color:var(--accent);color:var(--accent);box-shadow:0 0 16px var(--accent-glow)}
-.play-btn.playing{border-color:var(--accent);background:var(--accent);color:#fff}
+.play-btn:hover{border-color:var(--accent);color:var(--accent)}
+.play-btn.playing{
+  border-color:var(--accent);background:var(--accent);color:#faf5eb;
+  animation:glowPulse 2s ease-in-out infinite;
+}
+@keyframes glowPulse{
+  0%,100%{box-shadow:0 0 6px var(--accent-glow),0 0 18px rgba(107,138,122,.15)}
+  50%{box-shadow:0 0 14px var(--accent-glow),0 0 32px rgba(107,138,122,.3)}
+}
 
 /* ── Script viewer (文稿 tab) ── */
 .script-viewer{font-size:15px;line-height:2;padding:8px 0}
@@ -734,9 +744,10 @@ body::before{
 
 /* ── Audio player ── */
 .audio-player{
-  display:none;width:100%;margin-top:16px;
+  display:none;width:100%;margin-top:14px;
   border-radius:var(--radius);background:var(--bg-card);
-  outline:none;
+  border:1px solid var(--border);outline:none;
+  position:relative;z-index:1;
 }
 .audio-player.visible{display:block}
 
