@@ -2,9 +2,46 @@
 
 > 每天早上 10 点，AI 双人播客为你解读 GitHub 热门仓库和 AI 圈动态。
 
-TayPoadcast 是一个全自动的 AI 新闻播客生成器。它每天自动采集 GitHub Trending 和 Hacker News 热点，用 LLM 生成一段 NotebookLM 风格的双人中文对谈脚本，通过 Edge TTS 合成 MP3，最后推送到你的 Telegram 和微信。
+TayPoadcast 是一个全自动的 AI 新闻播客生成器。它每天自动采集多领域热点，用 LLM 生成 NotebookLM 风格的双人中文对谈脚本，通过 Edge TTS 合成 MP3，推送到 Telegram / 微信 / 飞书，并提供一套**日式手帳日志风格**的 Web 控制面板，让你在浏览器中一站式完成播客生成、试听、预览和推送。
 
-**无需服务器，零成本运行** — 整个管线跑在 GitHub Actions 免费额度上。
+**无需服务器，零成本运行** — 管线跑在 GitHub Actions 免费额度上，Web UI 可本地启动。
+
+---
+
+## Web 控制面板
+
+基于 Flask + 原生 HTML/CSS 的播客控制中心，采用 **kami（紙）设计系统**——暖色羊皮纸底色、墨蓝 accent、中文衬线字体排版，左右双栏布局：
+
+```
+┌─ 左栏（340px）────────────┐  ┌─ 右栏（flex:1）─────────────────────┐
+│  TayPoadcast              │  │  ┌ 音频 │ 文稿 │ 速览 ┐               │
+│  2026年5月22日 · 星期四    │  │  │ 🔊 AI 播客 · 12轮对话            │
+│                           │  │  │ ▶ 播放按钮 · 时长                │
+│  🖥️ AI与技术              │  │  └─────────────────────────┘         │
+│  GitHub Trending          │  │                                     │
+│                           │  │  对话文稿 · 晓晓/云扬 双人标注        │
+│  💰 财经                  │  │                                     │
+│  雪球 + 财联社             │  │  仓库速览 · star/语言/摘要           │
+│                           │  │                                     │
+│  [    生成播客    ]       │  │  ───────────────────────────        │
+│                           │  │  ▶ 0:00 / 10:24    1x              │
+│  ── 推送到通讯软件 ──      │  └─────────────────────────────────────┘
+│  [Telegram] [微信] [飞书]  │
+└───────────────────────────┘
+```
+
+**特性：**
+- **双栏布局** — 左侧领域选择 + 生成控制，右侧展示音频/文稿/速览
+- **kami 设计系统** — 来自 Open Design 的羊皮纸美学，墨蓝单色 accent，无粗体无斜体
+- **迷你播放器** — 固定在右栏底部，支持播放/暂停、倍速切换、波形动画
+- **在线试听** — 生成后直接在浏览器播放 MP3，无需下载
+- **多通道推送** — Telegram / 微信 / 飞书，飞书支持 Web UI 内填写凭证
+
+```bash
+# 启动 Web UI
+python web_app.py
+# → http://localhost:5001
+```
 
 ---
 
@@ -42,10 +79,11 @@ AI新闻早报 | 5月20日
 - **NotebookLM 风格双人播客** — 晓晓（好奇提问）+ 云扬（深度解读），有互动、有停顿、有金句
 - **全中文输出** — 仓库简介、对话脚本、推送文案全部中文化
 - **多 LLM 支持** — DeepSeek / Claude / OpenAI 自动检测，推荐 DeepSeek（~¥0.003/天）
-- **双通道推送** — Telegram 直接发 MP3，微信发文字简报
+- **三通道推送** — Telegram 发 MP3，微信发文字简报，飞书支持 Web UI 配置
 - **GitHub Pages 托管** — 播客自动部署到公网，支持在线播放
-- **完全自动化** — GitHub Actions 定时触发，每天 10 点准时推送
+- **完全自动化** — GitHub Actions 定时触发，每天 10 点（北京时间）准时推送
 - **多领域模块化** — 技术/财经/学术/综合新闻，按需启用，每个领域独立生成播客
+- **Web 控制面板** — 手帳日志风 UI，kami 设计系统，左右双栏，一站式操作
 
 ---
 
@@ -95,8 +133,9 @@ GitHub Actions (cron: 每天 10:00 北京时间)
 | 语音合成 | Microsoft Edge TTS（免费，中文原生） |
 | 音频处理 | ffmpeg |
 | 任务调度 | GitHub Actions |
-| 消息推送 | Telegram Bot API / 微信测试号 |
+| 消息推送 | Telegram Bot API / 微信测试号 / 飞书 Bot |
 | 文件托管 | GitHub Pages |
+| Web UI | Flask + 原生 HTML/CSS（kami 设计系统） |
 
 ---
 
@@ -105,6 +144,7 @@ GitHub Actions (cron: 每天 10:00 北京时间)
 ```
 .
 ├── main.py                 # 入口：4 种运行模式
+├── web_app.py              # Web 控制面板（Flask + kami 手帳日志风 UI）
 ├── fetcher/                  # 多领域信息源模块（热插拔架构）
 │   ├── base.py               # BaseFetcher 基类 + 数据结构
 │   ├── tech.py               # 技术模块（GitHub Trending + HN）
@@ -115,7 +155,7 @@ GitHub Actions (cron: 每天 10:00 北京时间)
 ├── cli_menu.py               # 交互式配置菜单
 ├── script_generator.py     # LLM 脚本生成（多 Provider）
 ├── audio_generator.py      # Edge TTS 双人语音合成
-├── notifier.py             # Telegram + 微信推送
+├── notifier.py             # Telegram + 微信 + 飞书推送
 ├── demo_script.json        # 演示脚本（无需 API Key）
 ├── requirements.txt
 ├── .github/workflows/
