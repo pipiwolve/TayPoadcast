@@ -67,18 +67,7 @@ python web_app.py
 
 **Telegram — 直接收听 MP3**
 
-```
-🎙️ AI新闻播客 | 2026年05月20日
-
-📦 本期 GitHub 仓库：
-  1. tinyhumansai/openhuman — ⭐3991 | Rust
-     本地运行私人AI助手，数据自控、极简强大
-  2. colbymchenry/codegraph — ⭐1869 | TypeScript
-     Claude Code/Cursor专用代码知识图谱，减少token消耗
-
-📻 共 22 轮对话 · 时长 4分44秒
-点击下方音频收听 ↓
-```
+![Telegram 推送效果](docs/images/telegram.png)
 
 **微信 — 文字简报**
 
@@ -89,6 +78,10 @@ AI新闻早报 | 5月20日
 2.codegraph ⭐1869 Claude Code专用代码知识图谱
 3.superpowers ⭐1620 Agent技能框架，标准化协作
 ```
+
+**飞书 — 文本预览 + MP3 文件**
+
+![飞书 推送效果](docs/images/feishu.png)
 
 ---
 
