@@ -505,28 +505,47 @@ body::before{
 /* ── Header ── */
 .header{
   text-align:center;
-  padding:56px 24px 40px;
-  position:relative;
+  padding:48px 24px 36px;
+  position:relative;z-index:1;
 }
-.header::after{
-  content:"";
-  position:absolute;
-  bottom:0;left:50%;transform:translateX(-50%);
-  width:60px;height:2px;
-  background:linear-gradient(90deg,transparent,var(--accent),transparent);
+.header .badge{
+  display:inline-block;
+  border:1.5px solid var(--text-primary);
+  padding:4px 18px;
+  margin-bottom:12px;
+  font-size:10px;
+  color:var(--text-secondary);
+  letter-spacing:.14em;
+  text-transform:uppercase;
 }
 .header h1{
   font-family:var(--font-display);
-  font-size:36px;
+  font-size:34px;
   font-weight:700;
   color:var(--text-primary);
-  letter-spacing:.04em;
-  margin-bottom:8px;
+  letter-spacing:.1em;
+  margin-bottom:6px;
 }
 .header .subtitle{
-  font-size:15px;
+  font-size:14px;
   color:var(--text-secondary);
-  letter-spacing:.06em;
+  letter-spacing:.08em;
+}
+.header .divider{
+  width:50px;height:1px;
+  background:var(--border);
+  margin:18px auto 0;
+}
+.header .date-stamp{
+  position:absolute;
+  top:28px;right:24px;
+  font-size:12px;
+  color:var(--text-muted);
+  letter-spacing:.04em;
+  writing-mode:horizontal-tb;
+}
+@media(max-width:480px){
+  .header .date-stamp{position:static;text-align:center;margin-top:12px}
 }
 
 /* ── Container ── */
@@ -741,8 +760,11 @@ body::before{
 <body>
 
 <header class="header">
+  <div class="badge">Daily AI Podcast</div>
   <h1>TayPoadcast</h1>
   <p class="subtitle">每日 AI 播客 · 收听与阅读</p>
+  <div class="divider"></div>
+  <div class="date-stamp" id="dateStamp"></div>
 </header>
 
 <div class="container">
@@ -837,6 +859,16 @@ fetch('/api/domains')
 fetch('/api/notify/config')
   .then(r => r.json())
   .then(data => { notifyChannels = data; });
+
+// Set date stamp
+(function(){
+  const d = new Date();
+  const days = ['星期日','星期一','星期二','星期三','星期四','星期五','星期六'];
+  const el = document.getElementById('dateStamp');
+  if (el) {
+    el.textContent = d.getFullYear() + '年' + (d.getMonth()+1) + '月' + d.getDate() + '日 · ' + days[d.getDay()];
+  }
+})();
 
 function toggleDomain(key, card) {
   // Single-domain mode: deselect all others first
