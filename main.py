@@ -78,7 +78,7 @@ def _save_artifacts(script: list[dict], audio_path: str, date_str: str):
     print(f"  ✓ 播客已保存: {audio_path}")
 
 
-async def run_auto_pipeline():
+async def run_auto_pipeline(no_notify: bool = False):
     """Multi-domain auto-pilot: for each enabled domain, fetch → script → audio → notify."""
     config = _load_config()
     domains = config.get("domains", {})
@@ -172,16 +172,20 @@ async def run_auto_pipeline():
             "digest_items": digest.items,
         })
 
-    # Step 4: Aggregated notification
+    # Step 4: Notification (skipped when --no-notify)
     if domain_results:
-        print(f"\n📤 Step 4/4: 推送多领域播客 ({len(domain_results)} 个领域)...")
-        results = await notify_multi_domain(domain_results, date_str=date_display)
-
-        channels_sent = [k for k, v in results.items() if v]
-        if channels_sent:
-            print(f"\n✅ 全管线完成！已通过 {', '.join(channels_sent)} 推送 {len(domain_results)} 个领域播客")
+        if no_notify:
+            print(f"\n🔇 Step 4/4: 跳过通知 (--no-notify)，播客已部署到 Pages")
+            print(f"\n✅ 全管线完成！生成了 {len(domain_results)} 个领域播客")
         else:
-            print(f"\n⚠️  管线完成但未配置通知渠道")
+            print(f"\n📤 Step 4/4: 推送多领域播客 ({len(domain_results)} 个领域)...")
+            results = await notify_multi_domain(domain_results, date_str=date_display)
+
+            channels_sent = [k for k, v in results.items() if v]
+            if channels_sent:
+                print(f"\n✅ 全管线完成！已通过 {', '.join(channels_sent)} 推送 {len(domain_results)} 个领域播客")
+            else:
+                print(f"\n⚠️  管线完成但未配置通知渠道")
     else:
         print("\n⚠️  所有领域均处理失败")
 
@@ -337,6 +341,7 @@ async def run_script_only():
 def print_usage():
     print("用法:")
     print("  python main.py --auto          # 🤖 全自动: 采集→脚本→音频→推送")
+    print("  python main.py --auto --no-notify  # 🔇 同上但跳过通知 (仅生成+部署)")
     print("  python main.py --full          # 完整管线 (不推送)")
     print("  python main.py --demo          # 演示模式 (无需API key)")
     print("  python main.py --multi-demo    # 多领域演示 (所有启用领域，无需API key)")
@@ -362,13 +367,14 @@ def main():
     parser.add_argument("--demo", action="store_true", help="演示模式 (无需API key)")
     parser.add_argument("--multi-demo", action="store_true", help="多领域演示 (所有启用领域，无需API key)")
     parser.add_argument("--script-only", action="store_true", help="只生成脚本")
+    parser.add_argument("--no-notify", action="store_true", help="自动模式下跳过通知推送")
     parser.add_argument("--output", "-o", default="output/podcast.mp3", help="输出文件路径")
     args = parser.parse_args()
 
     print_banner()
 
     if args.auto:
-        asyncio.run(run_auto_pipeline())
+        asyncio.run(run_auto_pipeline(no_notify=args.no_notify))
     elif args.script_only:
         asyncio.run(run_script_only())
     elif args.full:

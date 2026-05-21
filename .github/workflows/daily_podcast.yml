@@ -52,9 +52,16 @@ jobs:
           fi
           echo "WECHAT_SET=$HAS_WX" >> $GITHUB_ENV
 
+          HAS_FS=false
+          if [ -n "$FEISHU_APP_ID" ] && [ -n "$FEISHU_APP_SECRET" ] && [ -n "$FEISHU_RECEIVE_ID" ]; then
+            HAS_FS=true
+          fi
+          echo "FEISHU_SET=$HAS_FS" >> $GITHUB_ENV
+
           echo "LLM API Key: $HAS_KEY"
           echo "Telegram:     $HAS_TG"
           echo "WeChat:       $HAS_WX"
+          echo "Feishu:       $HAS_FS"
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
@@ -64,10 +71,13 @@ jobs:
           WX_APPID: ${{ secrets.WX_APPID }}
           WX_OPENID: ${{ secrets.WX_OPENID }}
           WX_TEMPLATE_ID: ${{ secrets.WX_TEMPLATE_ID }}
+          FEISHU_APP_ID: ${{ secrets.FEISHU_APP_ID }}
+          FEISHU_APP_SECRET: ${{ secrets.FEISHU_APP_SECRET }}
+          FEISHU_RECEIVE_ID: ${{ secrets.FEISHU_RECEIVE_ID }}
 
       - name: 运行每日播客管线
         id: podcast
-        run: python main.py --auto
+        run: python main.py --auto --no-notify
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
@@ -79,6 +89,10 @@ jobs:
           WX_SECRET: ${{ secrets.WX_SECRET }}
           WX_OPENID: ${{ secrets.WX_OPENID }}
           WX_TEMPLATE_ID: ${{ secrets.WX_TEMPLATE_ID }}
+          FEISHU_APP_ID: ${{ secrets.FEISHU_APP_ID }}
+          FEISHU_APP_SECRET: ${{ secrets.FEISHU_APP_SECRET }}
+          FEISHU_RECEIVE_ID: ${{ secrets.FEISHU_RECEIVE_ID }}
+          FEISHU_RECEIVE_ID_TYPE: ${{ secrets.FEISHU_RECEIVE_ID_TYPE }}
           AUDIO_BASE_URL: https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}
 
       - name: 部署到 GitHub Pages
@@ -102,6 +116,7 @@ jobs:
             echo "| LLM API Key | ${{ env.LLM_KEY_SET == 'true' && '✅' || '❌ 未设置' }} |"
             echo "| Telegram | ${{ env.TELEGRAM_SET == 'true' && '✅' || '⚠️ 未配置' }} |"
             echo "| WeChat | ${{ env.WECHAT_SET == 'true' && '✅' || '⚠️ 未配置' }} |"
+            echo "| Feishu | ${{ env.FEISHU_SET == 'true' && '✅' || '⚠️ 未配置' }} |"
             echo ""
             for domain_dir in output/${DATE_STR}/*/; do
               DOMAIN=$(basename "$domain_dir")
